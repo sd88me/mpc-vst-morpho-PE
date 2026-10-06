@@ -11,7 +11,7 @@
   seven fixed routes, the 4 x 16 sequencer with rests, resets, swing, clock modulation and the trigger modes, MIDI CCs.
 - Plugin: 219 parameters (128 program + 64 steps + host controls + popup state), an eight-tab skin in the browser renderer
   (`"art": "html"`, `vst/skin.css`, signal-flow drawings written by `tools/gen_layout.py`), banks from `.syx`,
-  user waveshape dumps, state chunk.
+  user waveshape dumps, Prophet VS wave dumps and single-cycle WAV banks, state chunk.
 - Tests: `tools/test_port.sh` passes every check but one (below); `test/test_engine.c` passes (pitch to 0.1 Hz, every built-in
   program, sequencer, extremes, SysEx and state round trips, a folder of banks and a waveshape).
 - CPU: 2-6 % of one x86 core for four held voices (rough; the device bench is still to do, docs/BENCH.md of mpc-vst-plugins).

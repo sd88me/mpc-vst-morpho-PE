@@ -65,3 +65,15 @@ takes them (README "Your own sounds and waves").
 - **The analog half can't come from firmware.** Oscillators 1/2, the lowpass and the VCA are circuits driven by control
   voltages, so they need measurements of a real instrument (recordings of single oscillators, filter sweeps at several
   resonances, envelope timings).
+
+## 5. Prophet VS wave formats (2026-10-06, offline, from user-supplied files that stay local)
+
+- **VS wave dump** (`F0 01 0A 7F`, 12 288 nibbles, `F7`): read as nibble pairs (high first) it is 6144 bytes, 32 waves of 192
+  bytes. Each wave is 128 bytes of the samples' top 8 bits (offset binary, so 0x80 is zero) followed by 64 bytes holding the
+  128 low nibbles: 12-bit samples, as the manual says of the ROM waves. Which low nibble of a byte belongs to the even sample
+  is not settled (no smoothness test separates them; the difference is under 1/256 of full scale).
+- **VS program bank** (`F0 01 0A 64`, 16 400 nibbles): a VS sound bank. Not loadable: a VS program has nothing in common with
+  an Evolver program.
+- **A single-cycle WAV** of VS waves (48 kHz float, 104 cycles of about 366.6 samples marked by cue points) matched none of
+  the 64 dumped RAM and ROM-cartridge waves, so it most likely holds the internal ROM waves; which cycle is which VS wave
+  number is not known yet.

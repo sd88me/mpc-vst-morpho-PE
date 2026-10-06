@@ -212,7 +212,7 @@ static void scan_dir(pe_t *s, const char *dir) {
     struct dirent *e;
     while ((e = readdir(d)) && n < 256) {
         size_t l = strlen(e->d_name);
-        if (l > 4 && !strcasecmp(e->d_name + l - 4, ".syx")) names[n++] = strdup(e->d_name);
+        if (l > 4 && (!strcasecmp(e->d_name + l - 4, ".syx") || !strcasecmp(e->d_name + l - 4, ".wav"))) names[n++] = strdup(e->d_name);
     }
     closedir(d);
     qsort(names, (size_t)n, sizeof names[0], cmpstr);
@@ -221,7 +221,24 @@ static void scan_dir(pe_t *s, const char *dir) {
         snprintf(path, sizeof path, "%s/%s", dir, names[i]);
         size_t len;
         uint8_t *buf = read_file(path, &len);
+        size_t nl = strlen(names[i]);
+        if (buf && !strcasecmp(names[i] + nl - 4, ".wav")) {
+            /* single-cycle waves, in order from wave 1 (the 95 ROM slots), leaving the user waves 97-128 alone */
+            float (*tmp)[PE_WLEN] = malloc(sizeof(float) * 95 * PE_WLEN);
+            int got = tmp ? waves_from_wav(buf, len, tmp, 95) : 0;
+            for (int k = 0; k < got; k++) memcpy(s->waves[k], tmp[k], sizeof tmp[k]);
+            s->user_waves += got;
+            free(tmp);
+            free(buf);
+            buf = NULL;
+        }
         if (buf) {
+            for (size_t p = 0; p + 4 < len; p++)   /* Prophet VS RAM wave dumps: its 32 user waves become waves 97-128 */
+                if (buf[p] == 0xF0 && buf[p + 1] == 0x01 && buf[p + 2] == 0x0A && buf[p + 3] == 0x7F) {
+                    float (*vs)[PE_WLEN] = malloc(sizeof(float) * 32 * PE_WLEN);
+                    if (vs && waves_from_vs_dump(buf + p, len - p, vs) == 32) { memcpy(s->waves[96], vs, sizeof(float) * 32 * PE_WLEN); s->user_waves += 32; }
+                    free(vs);
+                }
             wavectx_t wc = {s};
             syx_each(buf, len, wave_cb, &wc);
             loadctx_t lc = {0};
@@ -1040,7 +1057,8 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
     if (!strcmp(k, "seq_reset")) return snprintf(b, (size_t)n, "0") + 1;
     if (!strcmp(k, "voices")) return snprintf(b, (size_t)n, "%d", s->nv) + 1;
     if (!strcmp(k, "status"))
-        return snprintf(b, (size_t)n, "%d banks, %s", s->nbanks, s->user_waves ? "user waves" : "open waves") + 1;
+        return (s->user_waves ? snprintf(b, (size_t)n, "%d banks, %d waves loaded", s->nbanks, s->user_waves)
+                              : snprintf(b, (size_t)n, "%d banks, open waves", s->nbanks)) + 1;
     return 0;
 }
 

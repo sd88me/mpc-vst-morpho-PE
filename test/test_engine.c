@@ -148,6 +148,41 @@ int main(void) {
     int slot = waves_from_dump(wmsg, wn, w);
     CHECK(wn == 294 && slot == 99 && fabsf(w[0] + 1.0f) < 1e-6f && fabsf(w[127] - 0.984375f) < 1e-6f, "waveshape dump decodes (%d bytes, slot %d, %.4f..%.4f)", wn, slot, w[0], w[127]);
 
+    /* a Prophet VS wave dump: 32 waves of 128 12-bit samples (high bytes, then low nibbles), built here as a ramp */
+    {
+        static uint8_t vsm[4 + 12288 + 1];
+        vsm[0] = 0xF0; vsm[1] = 0x01; vsm[2] = 0x0A; vsm[3] = 0x7F; vsm[4 + 12288] = 0xF7;
+        for (int w2 = 0; w2 < 32; w2++)
+            for (int k = 0; k < 128; k++) {
+                int v = k * 32;                      /* 0..4064, offset binary: -2048..+2016 */
+                uint8_t *b = vsm + 4 + w2 * 384;
+                b[2 * k] = (uint8_t)(v >> 8); b[2 * k + 1] = (uint8_t)((v >> 4) & 15);
+                uint8_t *lb = b + 256 + 2 * (k / 2);
+                if (k & 1) lb[1] = (uint8_t)(v & 15); else lb[0] = (uint8_t)(v & 15);
+            }
+        static float vw[32][PE_WLEN];
+        int nw = waves_from_vs_dump(vsm, sizeof vsm, vw);
+        CHECK(nw == 32 && fabsf(vw[5][0] + 1) < 1e-6f && fabsf(vw[5][127] - 2016 / 2048.0f) < 1e-6f, "VS wave dump decodes (%d waves, %.4f..%.4f)", nw, vw[5][0], vw[5][127]);
+    }
+    /* a single-cycle WAV: 16-bit mono, three cycles of different lengths marked by cue points */
+    {
+        static uint8_t wv[44 + 2 * 600 + 12 + 3 * 24 + 64];
+        int lens[3] = {100, 200, 300}, pos = 0, o = 0;
+        #define PUT32(x) do { uint32_t x_ = (x); for (int q = 0; q < 4; q++) wv[o++] = (uint8_t)(x_ >> (8 * q)); } while (0)
+        #define PUT16(x) do { wv[o++] = (uint8_t)(x); wv[o++] = (uint8_t)((x) >> 8); } while (0)
+        memcpy(wv, "RIFF", 4); o = 4; PUT32(0); memcpy(wv + o, "WAVEfmt ", 8); o += 8; PUT32(16);
+        PUT16(1); PUT16(1); PUT32(44100); PUT32(88200); PUT16(2); PUT16(16);
+        memcpy(wv + o, "data", 4); o += 4; PUT32(1200);
+        for (int c = 0; c < 3; c++) for (int k = 0; k < lens[c]; k++) { int16_t x = (int16_t)(20000 * sin(6.2831853 * k / lens[c])); PUT16((uint16_t)x); }
+        memcpy(wv + o, "cue ", 4); o += 4; PUT32(4 + 3 * 24); PUT32(3);
+        for (int c = 0; c < 3; c++) { pos += lens[c]; PUT32(c); PUT32(pos); memcpy(wv + o, "data", 4); o += 4; PUT32(0); PUT32(0); PUT32(pos); }
+        static float ww[8][PE_WLEN];
+        int nc = waves_from_wav(wv, (size_t)o, ww, 8);
+        CHECK(nc == 3 && fabsf(ww[2][32] - 1) < 0.02f && fabsf(ww[2][96] + 1) < 0.02f, "WAV cycles split at cue points and resample to 128 (%d, %.3f %.3f)", nc, ww[2][32], ww[2][96]);
+        #undef PUT32
+        #undef PUT16
+    }
+
     /* a folder of .syx files: two banks of programs and a waveshape become banks and a user wave */
     {
         char dir[] = "/tmp/pe_test_XXXXXX";
@@ -170,7 +205,7 @@ int main(void) {
             fclose(fp);
             void *h3 = E->create(dir);
             E->get_param(h3, "status", b, sizeof b);
-            CHECK(!strcmp(b, "3 banks, user waves"), "folder scan finds two banks and a user wave (%s)", b);
+            CHECK(!strcmp(b, "3 banks, 1 waves loaded"), "folder scan finds two banks and a user wave (%s)", b);
             setp(h3, "bank", 2);
             E->get_param(h3, "bank_name", b, sizeof b);
             CHECK(!strcmp(b, "My Banks B2"), "bank name from the file (%s)", b);

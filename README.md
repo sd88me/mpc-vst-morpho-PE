@@ -37,9 +37,14 @@ The plugin makes a folder called `SYSEX` inside its own folder on first load. Pu
 - **Programs:** single program dumps, bank dumps or "all banks" dumps from a Poly Evolver or Evolver. Each bank in a file becomes
   a bank on the PROGRAM page, named after the file.
 - **Waveshapes:** the digital oscillators start with an open set of 128 waves of this project's own (wave 95 is blank and 97-128
-  repeat 1-32, as on the instrument). The original's waves are not in its firmware files and are not shipped. If you own the
-  instrument, request its waveshapes (Waveshape Data dumps, manual p. 56 and 60) and drop the resulting `.syx` in `SYSEX`:
-  every dumped wave replaces its slot.
+  repeat 1-32, as on the instrument). The original's waves are not in its firmware files and are not shipped. Three ways to
+  bring your own, all read from `SYSEX` (files load in name order; a later file overwrites the same waves):
+  - **Waveshape Data dumps** from a Poly Evolver or Evolver (manual p. 56 and 60): each dumped wave replaces its own slot.
+  - **Prophet VS wave dumps** (`F0 01 0A 7F`, a VS's 32 RAM waves): they become waves 97-128, the slots the Evolver keeps
+    for user waves (the VS's own user waves were 0-31).
+  - **Single-cycle WAV banks** (16/24/32-bit or float): one cycle per span between cue points (or every 128 samples without
+    cues), resampled to 128 points, filling waves 1-95 in order. A recording includes the instrument's output stage, so it
+    is close to the original data, not identical.
 
 Without any files, eight built-in programs of this project's own play on the open waves.
 
