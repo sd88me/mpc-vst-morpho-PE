@@ -45,11 +45,13 @@ static const float SYNC_STEPS[16] = {32, 16, 8, 4, 2, 1, 0.5f, 0.25f, 0.125f, 0.
 /* Steps per beat for each clock divide, and the swing (fraction of a step the odd steps are delayed by). */
 static const float DIV_MULT[13] = {0.5f, 1, 2, 2, 2, 3, 4, 4, 4, 6, 8, 12, 24};
 static const float DIV_SWING[13] = {0, 0, 0, 1.0f / 6, 1.0f / 3, 0, 0, 1.0f / 6, 1.0f / 3, 0, 0, 0, 0};
-/* Modulation depth: destination units reached by a full-scale source at amount 99 (or 100 for LFOs). Measured in the firmware
- * (docs/FIRMWARE.md section 7): filter frequency (20), LFO frequency (38-42) and envelope rates (52-63); the rest are still the
- * destination's full range. */
-static const float DR[69] = {0, 60, 60, 60, 60, 60, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 100, 100, 100, 100,
-    157, 100, 100, 99, 100, 6, 48, 100, 150, 150, 150, 150, 100, 100, 100, 100, 100, 100, 100, 100,
+/* Modulation depth: destination steps reached by a source of full scale (an LFO at amount 100: 25 600 accumulator units, see
+ * docs/FIRMWARE.md section 6). Read from the way the DSP consumes each accumulator: pitch 512 units a semitone, level, FM and RM
+ * parameters 326 a step, pulse width 331 a step with the accumulator doubled, LFO frequency and amount 256 a step, envelope rates
+ * 512, feedback frequency 512. Filter frequency and the delay, pan, VCA, distortion and sequencer destinations are not traced yet
+ * and keep the destination's full range. */
+static const float DR[69] = {0, 50, 50, 50, 50, 50, 78.5, 78.5, 78.5, 78.5, 78.5, 78.5, 78.5, 155, 155, 155, 78.5, 78.5, 78.5, 78.5,
+    164, 100, 100, 99, 100, 6, 50, 100, 150, 150, 150, 150, 100, 100, 100, 100, 100, 100, 100, 100,
     100, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 99, 50, 50, 50, 50, 50, 50, 50, 50,
     50, 50, 50, 50, 164, 164, 100, 100, 99};
 
@@ -142,6 +144,20 @@ static float hb_dec(hb_t *h, const float *c, int m, float x0, float x1) {
 static float rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(int32_t)*s * (1.0f / 2147483648.0f); }
 static int P(const pe_t *s, int i) { return s->patch[i]; }
 static float s99(const pe_t *s, int i) { return (float)s->patch[i] - 99; }
+
+/* The amount curves of the DSP, as a fraction of 25 600 accumulator units: an LFO amount 0-100 (gentle below 16, then 256 a step) and
+ * a -99..+99 amount (256 a step to +-72, then 512, reaching 32 767 at 99, i.e. 1.28). */
+static float amt_lfo(float a) {
+    static const short lo[16] = {0, 50, 100, 150, 200, 300, 400, 600, 800, 1100, 1500, 1900, 2300, 2800, 3300, 3700};
+    if (a >= 16) return a * (256.0f / 25600);
+    int i = (int)a;
+    float f = a - i;
+    return (lo[i] + f * ((i < 15 ? lo[i + 1] : 4096) - lo[i])) * (1.0f / 25600);
+}
+static float amt_s99(float a) {
+    float m = fabsf(a), v = m <= 72 ? m * 256 : fminf(18432 + (m - 72) * 512, 32767);
+    return (a < 0 ? -v : v) * (1.0f / 25600);
+}
 
 static void init_tables(void) {
     static int done;
@@ -578,7 +594,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         lfo_raw[l] = lfo_tick(&v->lfo[l], hz, P(s, lp[l][1]), &v->rng);
         int amt = P(s, lp[l][2]);
         if (amt > 100) amt -= 100;
-        float a = clampf(amt + dp[43 + l] + dp[47], 0, 100) / 100.0f;
+        float a = amt_lfo(clampf(amt + dp[43 + l] + dp[47], 0, 100));
         int dst = P(s, lp[l][3]);
         if (dst > 0 && dst < 69) d[dst] += lfo_raw[l] * a * DR[dst];
     }
@@ -599,7 +615,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
     for (int m = 0; m < 4; m++) {
         int src = P(s, mods[m][0]), dst = P(s, mods[m][2]);
         if (!src || !dst || dst > 68) continue;
-        float amt = s99(s, mods[m][1]) / 99.0f, x = sr[src];
+        float amt = amt_s99(s99(s, mods[m][1])), x = sr[src];
         int pitchlike = (dst >= 1 && dst <= 5) || dst == 20 || dst == 26 || dst == 64 || dst == 65;
         if (src == 20 && pitchlike) d[dst] += (v->note - 60) * amt;   /* key number tracks in semitones */
         else d[dst] += x * amt * DR[dst];
@@ -608,9 +624,9 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         {15, P_WHEEL_AMT, P_WHEEL_DEST}, {16, P_PRESS_AMT, P_PRESS_DEST}, {17, P_BREATH_AMT, P_BREATH_DEST}, {18, P_FOOT_AMT, P_FOOT_DEST}};
     for (int m = 0; m < 7; m++) {
         int dst = P(s, fixed[m][2]);
-        if (dst > 0 && dst < 69) d[dst] += sr[fixed[m][0]] * s99(s, fixed[m][1]) / 99.0f * DR[dst];
+        if (dst > 0 && dst < 69) d[dst] += sr[fixed[m][0]] * amt_s99(s99(s, fixed[m][1])) * DR[dst];
     }
-    { int dst = P(s, P_ENV3_DEST); if (dst > 0 && dst < 69) d[dst] += env3 * clampf(s99(s, P_ENV3_AMT) + dp[50] + dp[51], -99, 99) / 99.0f * DR[dst]; }
+    { int dst = P(s, P_ENV3_DEST); if (dst > 0 && dst < 69) d[dst] += env3 * amt_s99(clampf(s99(s, P_ENV3_AMT) + dp[50] + dp[51], -99, 99)) * DR[dst]; }
     if (has_seq)
         for (int k = 0; k < 4; k++) {
             int dst = P(s, P_SEQ1_DEST + k);

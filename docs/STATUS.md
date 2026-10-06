@@ -30,8 +30,9 @@
 - `test_port.sh`: "six data wheel clicks step six" fails on Osc1 Freq (0-120): a wheel click is 1.2 steps and the wrapper
   rounds it to 2. Every parameter with a range of 101-149 behaves so. A wrapper fix is proposed separately; `nudge_pct` is
   not used because it makes sweeps run fast on these ranges.
-- Measured in the DSP code (docs/FIRMWARE.md section 6): envelope tick rate, shapes and times; modulation depth of filter frequency, LFO
-  frequency and envelope rates. Still guessed: the Env 3 delay time, modulation depth of the other destinations (table `DR`), glide
+- Measured in the DSP code (docs/FIRMWARE.md section 6): envelope tick rate, shapes and times; modulation depth of pitch, levels, FM/RM,
+  pulse width, LFO frequency/amount, envelope rates and feedback frequency (and the firmware's amount curves). Still guessed: the Env 3 delay
+  time, filter-frequency, delay, pan, VCA, distortion and sequencer modulation depth (table `DR`), glide
   times, filter cutoff scale (16.35 Hz at 0, semitone steps), filter key tracking reference, split, audio mod and resonance
   scaling, distortion and noise gate curves, output hack (bit reduction), grunge (a fold), unison detune.
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument

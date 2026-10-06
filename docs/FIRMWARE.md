@@ -95,20 +95,37 @@ The disassembler decodes the whole image (5 725 words, no unknown words) from th
     = n ms), which is what fixes the tick rate. In the exponential shape (DM 0xF67A = 0) the level is a **curve of the ramp**,
     the 128-entry table at 0x1D45 (reverse-searched when a note retriggers): (1 - e^(-1.3 x)) / (1 - e^(-1.3)), x = (i + 1) / 128,
     within 0.6 % of full scale of every entry.
-  - Exponential decay: every tick the level closes (0x1CD6 entry) / 2^24 of its distance to the sustain level (time constant
-    2^24 / entry ticks: 0.56 ms at 0, 18.6 s at 110; 19 breakpoints, within 4 %). Release does the same to zero with the entry /
-    2^26 (4x slower) and ends when the high word reaches 0.
+  - Exponential decay: every tick the level closes (0x1CD6 entry) / 2^23 of its distance to the sustain level (time constant
+    2^23 / entry ticks: 0.28 ms at 0, 9.3 s at 110; 19 breakpoints, within 4 %). Release does the same to zero with the entry /
+    2^25 (4x slower) and ends when the high word reaches 0. (First read as 2^24 / 2^26: the multiplier runs in fractional mode and
+    doubles its product, which the simulator below showed.)
   - Linear shape (DM 0xF67A != 0): decay subtracts the attack-table slope (full scale in n ms), release a quarter of it (4 n ms).
 - The old guesses (3 kHz, 1.3 overshoot, 4.6 time constants) are replaced in `src/curves.c` and `env_tick`. The Env 3 delay stage
   was not located: it still reads the attack table (a guess).
-- **Modulation** is summed per destination into 16-bit accumulators (DM[0xF812 + destination], swapped each frame; group
-  destinations fan out at 0x16D5-0x17BA) and read back by the consumers with a per-destination unit. Source depth: the table at
-  0x1DC5 maps an amount 0-100 to 0, 50, 100, 150, 200, 300, 400, 600, 800, 1100, 1500, 1900, 2300, 2800, 3300, 3700 (0-15), then
-  256 x amount (4096 at 16 ... 25 600 at 100); amounts 101-200 (LFO/negative) repeat it. The routing code multiplies it by the source
-  (assumed fractional multiply: amount 100 = 25 600 units). Units per step seen so far: LFO frequency 256 (so 100 steps at amount
-  100), envelope rates 512 (50 steps; a positive amount shortens the time), filter cutoff 163 (157 steps). `DR` in `src/engine.c`
-  uses these three; the other destinations are not traced yet.
+- **Modulation** is summed per destination into 16-bit accumulators (DM[0xF812 + destination number], swapped each frame; group
+  destinations fan out at 0x16D5-0x17BA) and read back by the consumers (the stage code reads the previous frame's block at
+  DM[0xF813 + destination]). Source depth: the table at 0x1DC5 maps an LFO amount 0-100 to 0, 50, 100, 150, 200, 300, 400, 600, 800, 1100,
+  1500, 1900, 2300, 2800, 3300, 3700 (0-15), then 256 x amount (25 600 at 100); a -99..+99 amount (table at 0x1B3C) is 256 a step to
+  +-72, then 512, reaching +-32 767 at 99. The multiplier runs in fractional mode (M_MODE is never set in the code except around
+  one 32-bit multiply), so a full-scale source gives the depth itself in accumulator units. Units per destination step, from the code
+  that reads each accumulator: pitch 512 a semitone (50 at amount 100), level / FM / RM parameters 326 (the parameter times 163,
+  doubled: 78.5 steps), pulse width 331 with the accumulator doubled (155), LFO frequency and amount 256 (100), envelope rates 512 (50;
+  a positive amount shortens the time), feedback frequency 512 (50). `DR` in `src/engine.c` holds these; filter frequency, delay,
+  pan, VCA level, distortion and the sequencer destinations are not traced (the filter's goes through calibration tables the voice
+  CPU fills in, so it can only be read together with a calibration).
 - 0x19F0-0x1A71 are 2^(k/12) ratio tables used at boot (0x050E) to build the 64-entry control-voltage tables for the analog
   oscillators and filter from the voice CPU's calibration values: they cannot give a cutoff in Hz without that calibration.
 - Tuned feedback: 0x19C0 is its period table (read at 0x0248: 12 semitone entries, linear interpolation, octave folding by
   subtracting 0x0C00); 0x1940 feeds the oscillator increment code at 0x1200.
+
+## 7. The interpreter (2026-10-06, `tools/fw/adsp219x_sim.py`)
+
+A rig that runs one routine of the DSP image on a memory state you set up (no peripherals, interrupts or secondary registers;
+fractional/integer multiplier mode, saturating ALU mode, circular buffers, delayed branches and loops are modelled). It
+reproduces the envelope routine (0x071D) exactly: with state at DM 0xF801 (flags, level high word 0xF802, low word 0xF803),
+parameters at 0xF634 (attack, decay, sustain, release) and DM 0xF67A (0 exponential, 1 linear), measured on 2026-10-06:
+- linear attack index 0 / 10 / 50: 12 / 144 / 3600 ticks (1 / 12 / 300 ms at 12 kHz), linear decay index 50: 3600 ticks, linear
+  release index 50: 14 398 ticks (4x);
+- exponential attack index 50: 3572 ticks, level 0.22 / 0.66 of full scale at 1/8 and 1/2 of the time (the curve above gives 0.21 / 0.66);
+- exponential decay to 1/e: 221 / 1311 / 4414 ticks at index 20 / 50 / 80, release 886 / 5243 ticks at 20 / 50: time constant 2^23 / entry
+  ticks (corrected from 2^24, section 6), release 4x.

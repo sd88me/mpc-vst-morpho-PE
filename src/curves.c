@@ -32,7 +32,7 @@ float pe_env_tau_seconds(float v) {
     static const float bp[][2] = {{0, 0.5556f}, {1, 1.312f}, {5, 4.386f}, {9, 9.259f}, {12, 13.89f}, {16, 20.83f}, {19, 33.3f},
         {23, 50.1f}, {28, 73.8f}, {41, 160.6f}, {51, 227.6f}, {59, 341.3f}, {75, 582.5f}, {84, 932.1f}, {91, 1645}, {104, 6214},
         {106, 7989}, {108, 11185}, {110, 18641}};
-    return interp_log(bp, sizeof bp / sizeof bp[0], v) * 0.001f;
+    return interp_log(bp, sizeof bp / sizeof bp[0], v) * 0.0005f;     /* the breakpoints are twice the time constant: see FIRMWARE.md */
 }
 /* The exponential-shape attack: the output is this curve of the linear ramp x (0..1), 128 entries in the firmware, the first
  * ones to x = 1/128 steps; within 0.6 % of full scale of every entry. */
