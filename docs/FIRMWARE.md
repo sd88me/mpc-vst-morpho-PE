@@ -178,3 +178,22 @@ taken off the right gain of the (L, R) pair for the setting (1.0/0, 0.7/0.3, 0.6
 about 4.7 positions. Filter frequency: base cutoff CV is 256 a semitone and the modulation enters at x 0.563 (0x4812/32768), so about 56
 semitones; the final DAC code goes through calibration the voice CPU provides, so this is an estimate. The unison detune is not in the
 voice CPU image (it is in the main CPU's key assignment) and was not traced.
+
+## 12. The main CPU (2026-10-07, `tools/fw/dspic_dis.py`)
+
+The main 2.2 image (dsPIC, 3 bytes per 24-bit word) disassembles with the dsPIC decoder written for the Tempest's voice CPU (mpc-vst-tpv):
+code at 0x0100-0x26B6 and 0x5FB0-0xFFFE; the 4 713 words it shows as data are strings and tables kept as 16-bit words in program memory
+and read through the PSV window (data address 0x8000 + program address; byte n of that stream is program address n).
+- **RAM**: the edit buffer is at 0x10E6 (program parameter p at 0x10E6 + p, the 64 sequencer steps from 0x10E6 + 128); the globals at
+  0x0CA8 in the main CPU's own order (Master Fine Tune is 0x0CA8 + 5); the voice mode is key mode / 6 at 0x0BBC (0 poly, 1 mono, 2
+  unison 1, 3 unison 2).
+- **Unison detune** (routine 0x8B5C, called after a program or key-mode change): for each voice v the main CPU sends the voice CPU global
+  11, Master Fine Tune (0-100, 50 = 0 cents; manual p. 62), as master fine tune + table[mode][v], clamped to 0-100. The table (PSV
+  0x8844, 4 x 4 words): Poly and Mono 0 0 0 0, **Unison 1 -1 +1 -3 +3 cents, Unison 2 -3 +3 -8 +8 cents** (voices 1-4; the voice
+  address table at 0x87FA is 1, 2, 4, 8). The engine had guessed an even spread of up to +-6 / +-15 cents; it now uses the table
+  (voices 5-8 repeat it), checked by `test/test_engine.c`.
+- **What is not here**: the main CPU reads only a few program parameters itself (trigger 54, tempo 66, clock divide 67, key mode 71 and
+  the sequencer steps) and forwards the rest. LP key amount, audio mod and L/R split are never read from the edit buffer, so their
+  scales are in the voice CPU or the DSP, not in this image; tempo and clock divide are copied to 0x0CB2/0x0CB3 and sent on (the sync
+  arithmetic is the DSP's, section 3). The modulation routing is the DSP's (sections 6 and 11).
+
