@@ -10,3 +10,5 @@ float pe_env_curve(float x);            /* exponential-shape attack: output for 
 float pe_lfo_hz(int v);                 /* LFO frequency 0..150 (unsynced) */
 float pe_delay_seconds(int v);          /* delay tap time 0..150 (unsynced), the firmware's samples at 48 kHz */
 float pe_glide_seconds(int v);          /* glide 1..100: seconds per octave */
+float pe_dist_gain(float p);            /* distortion 0..99: gain before the hard clip */
+float pe_env_delay_seconds(int v);      /* envelope 3 delay 0..100 */

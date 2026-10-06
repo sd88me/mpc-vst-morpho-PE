@@ -33,12 +33,12 @@
 - `test_port.sh`: "six data wheel clicks step six" fails on Osc1 Freq (0-120): a wheel click is 1.2 steps and the wrapper
   rounds it to 2. Every parameter with a range of 101-149 behaves so. A wrapper fix is proposed separately; `nudge_pct` is
   not used because it makes sweeps run fast on these ranges.
-- Measured in the DSP code (docs/FIRMWARE.md section 6): envelope tick rate, shapes and times; modulation depth of pitch, levels, FM/RM,
-  pulse width, LFO frequency/amount, envelope rates and feedback frequency (and the firmware's amount curves). Still guessed: the Env 3 delay
-  time, filter-frequency, delay, pan, VCA, distortion and sequencer modulation depth (table `DR`), unison detune, distortion and
-  noise-gate curves, grunge. Output hack was checked against the DSP's own bit masks (table 0x2010) and already matched
-  times, filter cutoff scale (16.35 Hz at 0, semitone steps), filter key tracking reference, split, audio mod and resonance
-  scaling, distortion and noise gate curves, output hack (bit reduction), grunge (a fold), unison detune.
+- Measured in the DSP and voice-CPU code (docs/FIRMWARE.md sections 6-11): envelope tick rate, shapes and times, the amount curves and the
+  modulation units of pitch, levels, FM/RM, pulse width, LFO frequency/amount, envelope rates, feedback, highpass, delay, pan and VCA;
+  distortion gain and hard clip, the noise gate, grunge (the mixer sum wraps instead of saturating), the output hack's bit masks, glide, and
+  the Env 3 delay. The voice-CPU times assume a 40 MHz clock (not in the file).
+- Still guessed: filter-frequency modulation depth (an estimate, 56 semitones), split, the sequencer destinations, audio-mod and filter
+  key-tracking scales, the cutoff in Hz (calibrated analog hardware), unison detune (main CPU key assignment).
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
   plugin: the Ext In trigger modes act like their keyboard counterparts and the input sources read zero.
 - Sequencer MIDI-out destinations (notes, velocity, controllers) are ignored: MPC does not take MIDI from a VST.
@@ -51,8 +51,7 @@ for Chromium build 1194).
 
 ## Next steps
 1. Device: build, bench, play, save/reload a project (mpc-vst-plugins docs/PORTING.md section 4).
-2. Continue the DSP code reading: the remaining destinations' units, the feedback and delay paths, distortion, noise gate, output hack,
-   unison detune. Glide is now from the voice CPU's table (docs/FIRMWARE.md section 8; the 40 MHz clock is assumed).
-3. An offline ADSP-219x interpreter as a reference rig for the digital half (docs/FIRMWARE.md section 4).
+2. Main CPU (dsPIC) code: unison detune, key tracking, the sequencer clock; needs a dsPIC decoder.
+3. Run more of the DSP (digital oscillators 3/4, the delay and feedback paths) in `tools/fw/adsp219x_sim.py` as a reference for the digital half.
 4. Recordings of a real instrument for the analog half.
 5. The catalog route (docs/CATALOG.md of mpc-vst-plugins).

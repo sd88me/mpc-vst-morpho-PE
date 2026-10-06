@@ -146,3 +146,35 @@ makes a tick 204 us and a glide step every 510 us.
   breakpoints and the 40 MHz assumption (a 20 MHz clock would double every time).
 - Other tables: 0xB1A, 0xBE2 and 0xD4E (100-entry 16-bit tables, high byte first) are the voice CPU's other 0-100 curves, not yet
   attributed.
+
+## 9. Distortion, noise gate, grunge (2026-10-06, interpreter measurements)
+
+Parameter p of the program is at DM 0xF622 + p (osc 1 frequency 0xF622, filter frequency 0xF632, distortion 0xF689 ...).
+- **Distortion** (setting 1-99 on the output; 100-199 is the same before the filter, not modelled): routine 0x06AD turns the setting into a
+  gain index (the 99-entry table at 0x22FD plus the modulation accumulator / 8); 0x06C7 multiplies and **clips hard at full scale**. Gain =
+  index / 16: 1 at setting 0, 2.3 at 3, 7.8 at 9, 32 at 20, 85 at 31, 197 at 44, 415 at 59, 868 at 78, 1659 (64 dB) at 99 (11 breakpoints
+  within 4 %, `pe_dist_gain`). Setting 1 runs only the noise gate; the gate is keyed from the left channel before the distortion.
+- **Noise gate** (0x06D5): open while the sample magnitude is at least 122/32768 (-48.6 dBFS), then held for 2048 samples (at 48 kHz) after the
+  last such sample; then the gain falls to 0 at once, unless the peak seen since it opened is at most 409/32768, in which case it fades
+  linearly over 8192 samples from (55 x peak + 1792) / 32768. Measured by feeding the routine samples (`adsp219x_sim.py`).
+- **Grunge** (DM 0xF644 bit 0): the mixer's accumulation of oscillators 3/4, the tuned-feedback line and the delay feedback runs at 0x0376 with
+  `SAT MR` after each multiply-accumulate, or with grunge at 0x0395 without it: the sum wraps round at full scale instead of clipping.
+- Env 3 delay (parameter 112) is not read anywhere in the DSP image; it is in the voice CPU (section 10).
+
+## 10. Voice CPU: Env 3 delay (2026-10-06)
+
+The voice CPU's parameter RAM holds program parameter p at 0x15E + p (osc 1 glide, p 64, at 0x19E; key mode, p 71, at 0x1A5; Env 3 delay,
+p 112, at 0x1CE). The delay (0x3B58) is a 16-bit count looked up in the 101-entry table at 0xB19 (0 ... 10 in steps of 1, 12 ... 30 by 2, 33 ...
+60 by 3, ... 100 at 40, 150 at 50, 250 at 60, 550 at 90, 740 at 100) and counted down at 0x5FDC, once every second 60-tick frame (a counter at
+0x263 reloaded with 2): 120 ticks = 24.5 ms a count at the assumed 40 MHz clock, so the delay runs from 24 ms (1) to 18 s (100). When it
+reaches zero the voice CPU raises the envelope gate. `pe_env_delay_seconds` uses it (previously the attack table, a guess).
+
+## 11. More modulation units (2026-10-06)
+
+Read from the consumers, in accumulator units (an LFO at amount 100 = 25 600): highpass 512 a step (50; added); delay time 512 a table step
+(50; **subtracted**, a positive amount shortens the delay); delay level, delay feedback 1, VCA level and VCA envelope amount 326 a step (the
+parameter x 163, doubled: 78.5); delay feedback 2 and resonance 256 (table 0x1AD7: 100); pan: the accumulator is added to the left gain and
+taken off the right gain of the (L, R) pair for the setting (1.0/0, 0.7/0.3, 0.6/0.4, 0.5/0.5 ... at 0x2002), 0.78 of full scale at 25 600,
+about 4.7 positions. Filter frequency: base cutoff CV is 256 a semitone and the modulation enters at x 0.563 (0x4812/32768), so about 56
+semitones; the final DAC code goes through calibration the voice CPU provides, so this is an estimate. The unison detune is not in the
+voice CPU image (it is in the main CPU's key assignment) and was not traced.

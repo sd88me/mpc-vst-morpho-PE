@@ -48,12 +48,13 @@ static const float DIV_SWING[13] = {0, 0, 0, 1.0f / 6, 1.0f / 3, 0, 0, 1.0f / 6,
 /* Modulation depth: destination steps reached by a source of full scale (an LFO at amount 100: 25 600 accumulator units, see
  * docs/FIRMWARE.md section 6). Read from the way the DSP consumes each accumulator: pitch 512 units a semitone, level, FM and RM
  * parameters 326 a step, pulse width 331 a step with the accumulator doubled, LFO frequency and amount 256 a step, envelope rates
- * 512, feedback frequency 512. Filter frequency and the delay, pan, VCA, distortion and sequencer destinations are not traced yet
+ * 512, feedback frequency 512, highpass 512 (50), delay time 512 (50, a positive amount shortens it), delay and VCA level, delay feedback 1
+ * and VCA envelope amount 326 (78.5), delay feedback 2 and resonance 256 (100), pan about 4.7 positions. Distortion adds the accumulator / 8 to the firmware's gain x 16 (25 600 units). Filter frequency (20, 64, 65) is an estimate: the cutoff CV is computed as 256 units a semitone and the accumulator enters at 0.563, which gives 56, but the calibration tables the voice CPU fills in were not available to check it. Split and the sequencer destinations are not traced yet
  * and keep the destination's full range. */
 static const float DR[69] = {0, 50, 50, 50, 50, 50, 78.5, 78.5, 78.5, 78.5, 78.5, 78.5, 78.5, 155, 155, 155, 78.5, 78.5, 78.5, 78.5,
-    164, 100, 100, 99, 100, 6, 50, 100, 150, 150, 150, 150, 100, 100, 100, 100, 100, 100, 100, 100,
-    100, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 99, 50, 50, 50, 50, 50, 50, 50, 50,
-    50, 50, 50, 50, 164, 164, 100, 100, 99};
+    56, 100, 100, 50, 78.5, 4.7, 50, 100, 50, 50, 50, 50, 78.5, 78.5, 78.5, 78.5, 78.5, 100, 100, 100,
+    100, 100, 100, 100, 100, 100, 100, 100, 99, 78.5, 99, 99, 50, 50, 50, 50, 50, 50, 50, 50,
+    50, 50, 50, 50, 56, 56, 100, 100, 25600};
 
 enum { ST_IDLE, ST_DELAY, ST_ATT, ST_DEC, ST_SUS, ST_REL };
 typedef struct { int st; float lvl, x, t; } env_t;
@@ -81,7 +82,8 @@ typedef struct {
     hb_t dec[2][2];
     float sync_corr;              /* the part of a hard-sync jump still to add to the next oscillator 1 sample */
     float bpre[2];                /* last mixer input from the base-rate parts, for the upsampling interpolation */
-    float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_env, gain_gate, dfb;
+    float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_peak, gate_fade, gate_g0, gain_gate, distg, dfb;
+    int gate_state, gate_hold;
     int fpos, dpos, hp_cur;
     float *dly;
     uint32_t rng;
@@ -448,7 +450,7 @@ static float glide_rate(const pe_t *s, int osc, int legato) {
     return 12.0f / pe_glide_seconds(g);    /* semitones per second */
 }
 static void voice_trigger(pe_t *s, voice_t *v, int on) {
-    float d3 = env_s(P(s, P_ENV3_DELAY));
+    float d3 = pe_env_delay_seconds(P(s, P_ENV3_DELAY));
     for (int e = 0; e < 3; e++) env_gate(&v->env[e], on, e == 2 ? d3 : 0, P(s, P_ENV_SHAPE));
     if (on) {
         v->sounding = 1;
@@ -580,7 +582,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         float a = P(s, ep[e][0]) - dp[52 + e] - dp[55];
         float dd = P(s, ep[e][1]) - dp[56 + e] - dp[59];
         float r = P(s, ep[e][3]) - dp[60 + e] - dp[63];
-        env_tick(&v->env[e], a, dd, P(s, ep[e][2]) / 100.0f, r, lin, env_s(P(s, P_ENV3_DELAY)));
+        env_tick(&v->env[e], a, dd, P(s, ep[e][2]) / 100.0f, r, lin, pe_env_delay_seconds(P(s, P_ENV3_DELAY)));
     }
     float velf = 1 - P(s, P_LPF_VEL) / 100.0f * (1 - vel), vela = 1 - P(s, P_VCA_VEL) / 100.0f * (1 - vel), vel3 = 1 - P(s, P_ENV3_VEL) / 100.0f * (1 - vel);
     float fenv = v->env[0].lvl * velf, aenv = v->env[1].lvl * vela, env3 = v->env[2].lvl * vel3;
@@ -700,7 +702,8 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
     v->hpv = (hpf > 0 && hpf < 100) ? clampi(hpf + (int)d[23], 1, 99) : 0;
     if (v->hpv && v->hpv != v->hp_cur) hpf_design(v, v->hpv);
     int dist = P(s, P_DIST);
-    v->distv = (dist > 0 && dist < 100) ? clampi(dist + (dist > 1 ? (int)d[68] : 0), 1, 99) : 0;
+    v->distv = (dist > 0 && dist < 100) ? dist : 0;
+    v->distg = dist > 1 && dist < 100 ? fmaxf(pe_dist_gain((float)dist) + d[68] * (1.0f / 128), 0) : 1;   /* the accumulator adds 1/8 to the table entry, which is gain x 16 */
     static const int dt[3] = {P_DLY1_TIME, P_DLY2_TIME, P_DLY3_TIME}, da[3] = {P_DLY1_LEVEL, P_DLY2_LEVEL, P_DLY3_LEVEL};
     for (int k = 0; k < 3; k++) {
         int tv = P(s, dt[k]);
@@ -708,7 +711,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         if (tv > 150) {
             sec = SYNC_STEPS[clampi(tv - 151, 0, 15)] / sps;
             while (sec > 1.0f) sec *= 0.5f;    /* too long for one second of memory: halve until it fits (manual) */
-        } else sec = pe_delay_seconds((int)clampf(tv + d[28 + k] + d[31], 0, 150));
+        } else sec = pe_delay_seconds((int)clampf(tv - d[28 + k] - d[31], 0, 150));   /* a positive mod shortens the delay */
         v->dlen[k] = clampf(sec * FS, 1, DLEN - 4);
         v->damt[k] = clampf(P(s, da[k]) + d[32 + k] + d[35], 0, 100) / 100.0f;
     }
@@ -814,9 +817,12 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
         float bnow[2] = {o3 * 0.5f, o4 * 0.5f};
         float fbg = v->fblvl * 1.02f;
         for (int c = 0; c < 2; c++) {
-            float fb = v->fbo[c] * fbg;
-            if (grunge && v->fblvl > 0.5f) fb = (fb > 0.25f ? fb - 0.5f : fb < -0.25f ? fb + 0.5f : fb) * 2;   /* folds: nasty at high levels */
-            bnow[c] += fb + v->dfb * v->fb2;
+            bnow[c] += v->fbo[c] * fbg + v->dfb * v->fb2;
+            /* the DSP sums these in a 32-bit accumulator and saturates it at full scale; with grunge on it does not saturate, so
+             * the sum wraps round instead (docs/FIRMWARE.md section 7). In this mixer full scale is 0.5. */
+            float x = bnow[c] * 2;
+            x = grunge ? x - 2 * floorf((x + 1) * 0.5f) : clampf(x, -1, 1);
+            bnow[c] = x * 0.5f;
         }
         /* The analog section runs OS times oversampled: oscillators 1 and 2 (CEM3340-style), the mixer, the lowpass
          * (CEM3320-style OTA cascade, each OTA's tanh limiting its own input; zero-delay feedback; resonance from stage 4, or
@@ -894,13 +900,25 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             L = io[0]; R = io[1];
         }
         if (v->distv) {
-            float lv = fabsf(L);
-            v->gate_env += (lv > v->gate_env ? 0.01f : 0.0005f) * (lv - v->gate_env);
-            float gt = v->gate_env > 0.002f ? 1.0f : 0.0f;
-            v->gain_gate += (gt - v->gain_gate) * 0.002f;
-            float drive = 1 + v->distv * 0.35f;
-            L = ftanh(L * drive) / sqrtf(drive) * v->gain_gate;
-            R = ftanh(R * drive) / sqrtf(drive) * v->gain_gate;
+            /* the DSP's noise gate, keyed from the left channel before the distortion: open while the sample is at least 122/32768,
+             * held 2048 samples (at 48 kHz) after it drops below, then closed at once, or for a quiet tail (peak up to 409) faded out
+             * linearly over 8192 samples; the gain then multiplies the clipped signal. Measured with the interpreter (FIRMWARE.md 7). */
+            const float k48 = FS / 48000.0f;
+            float lv = fabsf(L) * 32768.0f;
+            if (lv > v->gate_peak) v->gate_peak = lv;
+            if (lv >= 122) {
+                v->gate_state = 1; v->gate_hold = 0;
+                if (v->gate_peak <= 409) v->gate_g0 = fminf(1.0f, (55.0f * v->gate_peak + 1792.0f) / 32768.0f);
+                v->gain_gate = 1;
+            } else if (v->gate_state == 1) {
+                if (++v->gate_hold >= (int)(2048 * k48)) { v->gate_state = 2; v->gate_fade = 8192 * k48; }
+            } else if (v->gate_state == 2) {
+                v->gate_fade -= 1;
+                v->gain_gate = v->gate_fade > 0 ? v->gate_fade / (8192 * k48) * v->gate_g0 : 0;
+                if (v->gate_fade <= 0) { v->gate_state = 0; v->gate_peak = 0; }
+            } else v->gain_gate = 0;
+            L = clampf(L * v->distg, -1, 1) * v->gain_gate;
+            R = clampf(R * v->distg, -1, 1) * v->gain_gate;
         }
         /* three-tap delay on the summed channels; FB1 back into the delay, FB2 back into the filters */
         float din = 0.5f * (L + R), dsum = 0;

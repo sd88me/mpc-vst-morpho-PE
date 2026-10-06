@@ -79,3 +79,23 @@ float pe_glide_seconds(int v) {
         if (v <= bp[i][0]) { r = bp[i - 1][1] + (float)(v - bp[i - 1][0]) * (bp[i][1] - bp[i - 1][1]) / (bp[i][0] - bp[i - 1][0]); break; }
     return 12.0f / (r * 7.66f);
 }
+
+/* Distortion (output side, setting 2-99): the DSP multiplies the signal by this gain and clips hard at full scale. The gain is the
+ * firmware's table entry / 16: 1 at 0 rising exponentially to 1659 (64 dB) at 99; breakpoints within 4 % of every entry (setting 1 is
+ * the noise gate alone). */
+float pe_dist_gain(float p) {
+    static const float bp[][2] = {{0, 1}, {3, 2.312f}, {5, 3.688f}, {9, 7.812f}, {12, 12.375f}, {20, 32.44f}, {31, 84.81f}, {44, 196.8f},
+        {59, 415}, {78, 868}, {99, 1659}};
+    return interp_log(bp, sizeof bp / sizeof bp[0], p);
+}
+
+/* Env 3 delay: the voice CPU holds the gate back by a count from a 101-entry table (0, 1 ... 10, 30 at 20, 100 at 40, 740 at 100; piecewise
+ * linear here, within 1.2 %), decremented every second pass of its 60-tick frame: 120 timer ticks = 24.5 ms at the assumed 40 MHz clock. */
+float pe_env_delay_seconds(int v) {
+    static const short bp[][2] = {{0, 0}, {1, 1}, {10, 10}, {20, 30}, {30, 60}, {40, 100}, {50, 150}, {90, 550}, {100, 740}};
+    if (v <= 0) return 0;
+    if (v > 100) v = 100;
+    for (int i = 1; i < 9; i++)
+        if (v <= bp[i][0]) return (bp[i - 1][1] + (float)(v - bp[i - 1][0]) * (bp[i][1] - bp[i - 1][1]) / (bp[i][0] - bp[i - 1][0])) * 0.0245f;
+    return 740 * 0.0245f;
+}
