@@ -181,7 +181,7 @@ voice CPU image (it is in the main CPU's key assignment) and was not traced.
 
 ## 12. The main CPU (2026-10-07, `tools/fw/dspic_dis.py`)
 
-The main 2.2 image (dsPIC, 3 bytes per 24-bit word) disassembles with the dsPIC decoder written for the Tempest's voice CPU (mpc-vst-tpv):
+The main 2.2 image (dsPIC, 3 bytes per 24-bit word) disassembles with the dsPIC decoder written for the Tempest's voice CPU (mpc-vst-sturm):
 code at 0x0100-0x26B6 and 0x5FB0-0xFFFE; the 4 713 words it shows as data are strings and tables kept as 16-bit words in program memory
 and read through the PSV window (data address 0x8000 + program address; byte n of that stream is program address n).
 - **RAM**: the edit buffer is at 0x10E6 (program parameter p at 0x10E6 + p, the 64 sequencer steps from 0x10E6 + 128); the globals at

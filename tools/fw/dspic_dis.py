@@ -5,7 +5,7 @@
 
 Unknown encodings print as .word (in DSI images most are data: strings and tables stored as 16-bit words in program memory,
 read through the PSV window at 0x8000 + program address). Written from the 16-bit MCU/DSC programmer's reference encodings for the
-Tempest voice CPU (mpc-vst-tpv) and used here on the Poly Evolver main CPU (docs/FIRMWARE.md section 12); good enough to follow
+Tempest voice CPU (mpc-vst-sturm) and used here on the Poly Evolver main CPU (docs/FIRMWARE.md section 12); good enough to follow
 compiled C, not a validated tool.
 """
 import sys
