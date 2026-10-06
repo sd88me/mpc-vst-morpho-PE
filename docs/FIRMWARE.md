@@ -115,6 +115,8 @@ The disassembler decodes the whole image (5 725 words, no unknown words) from th
   CPU fills in, so it can only be read together with a calibration).
 - 0x19F0-0x1A71 are 2^(k/12) ratio tables used at boot (0x050E) to build the 64-entry control-voltage tables for the analog
   oscillators and filter from the voice CPU's calibration values: they cannot give a cutoff in Hz without that calibration.
+- Output hack: the table at 0x2010 holds the masks 0xFFFF, 0xFFFE, 0xFFFC ... 0xC000 (hack 0-14); the stereo output words are ANDed with
+  the mask of the setting (2 bits kept at 14): what the engine already did (`floor(x * 2^(15 - hack))`).
 - Tuned feedback: 0x19C0 is its period table (read at 0x0248: 12 semitone entries, linear interpolation, octave folding by
   subtracting 0x0C00); 0x1940 feeds the oscillator increment code at 0x1200.
 
@@ -129,3 +131,18 @@ parameters at 0xF634 (attack, decay, sustain, release) and DM 0xF67A (0 exponent
 - exponential attack index 50: 3572 ticks, level 0.22 / 0.66 of full scale at 1/8 and 1/2 of the time (the curve above gives 0.21 / 0.66);
 - exponential decay to 1/e: 221 / 1311 / 4414 ticks at index 20 / 50 / 80, release 886 / 5243 ticks at 20 / 50: time constant 2^23 / entry
   ticks (corrected from 2^24, section 6), release 4x.
+
+## 8. The voice CPU (2026-10-06, `tools/fw/pic18_dis.py`)
+
+The PIC18 image disassembles with a short PIC18 decoder (160 `.word` entries of 16 000: the data tables). It is compiled C driven by
+a timer: Timer 2 (T2CON 0x49: prescale 1:4, postscale 1:10, PR2 = 50, so one tick every 2040 instruction clocks) sets a flag; a counter
+(0..59, DM 0x237) hands out the work, and the glide routine (0x2E1C) is called at counts 2, 7, 12 ... and 4, 9, 14 ... (twice every five
+ticks, each call stepping all four oscillators). The clock frequency is not in the file; 40 MHz (10 MHz crystal x 4) is assumed, which
+makes a tick 204 us and a glide step every 510 us.
+- **Glide.** The target pitch is the note number in the high byte (8.8: 256 per semitone). Each step moves the current pitch by a byte
+  R from the table at 0xF6E (index = glide setting, or setting - 99 for the fingered range; 255 at 0 and 1, 250, 240 ... 170 at 10, 205 at
+  11, 120 at 21, 90 at 31, 50 at 51, then -1 a step to 1 at 100). So a glide of g takes 12 x 256 / R steps per octave: 6 ms at 1-2, 1.6 s
+  at 99, and the table's non-monotonic spot at 10-11 is the firmware's own. `pe_glide_seconds` in `src/curves.c` uses the table's
+  breakpoints and the 40 MHz assumption (a 20 MHz clock would double every time).
+- Other tables: 0xB1A, 0xBE2 and 0xD4E (100-entry 16-bit tables, high byte first) are the voice CPU's other 0-100 curves, not yet
+  attributed.

@@ -17,6 +17,9 @@
 - Analog section (2026-10-06): CEM3340-style VCO, CEM3320-style OTA-cascade lowpass, soft VCA (src/engine.c `analog_osc`, `ota_lpf`). Checked offline:
   pole frequency = the set cutoff, 4-pole self-oscillates from resonance 4 (the engine's maximum is 4.5), 2-pole never does. Not compared
   with a real instrument.
+- Hard sync is band-limited (polyBLEP of the jump, relative to the kernel the oscillator already applies at its own wrap): non-harmonic
+  energy with sync on drops from about -33 dB to -45 dB at 1x and stays near -54 dB at 2x. An exponential VCA response was not added: the
+  DSP's VCA control is linear (table 0x1AD7) and the chip's own curve needs measurements.
 - Oversampling (2026-10-06): the analog section runs at 1x, 2x or 4x (host parameter Quality, default 2x), with Kaiser half-band
   decimators (about 70 dB down above the band). Saw/pulse aliasing at C6-F#7 falls from about -33 dB (1x) to about -49 dB (2x); 4x gains
   little more, and costs about 3.6x the engine's CPU against 1.8x for 2x (x86; the device is unmeasured, so check docs/BENCH.md before
@@ -32,7 +35,8 @@
   not used because it makes sweeps run fast on these ranges.
 - Measured in the DSP code (docs/FIRMWARE.md section 6): envelope tick rate, shapes and times; modulation depth of pitch, levels, FM/RM,
   pulse width, LFO frequency/amount, envelope rates and feedback frequency (and the firmware's amount curves). Still guessed: the Env 3 delay
-  time, filter-frequency, delay, pan, VCA, distortion and sequencer modulation depth (table `DR`), glide
+  time, filter-frequency, delay, pan, VCA, distortion and sequencer modulation depth (table `DR`), unison detune, distortion and
+  noise-gate curves, grunge. Output hack was checked against the DSP's own bit masks (table 0x2010) and already matched
   times, filter cutoff scale (16.35 Hz at 0, semitone steps), filter key tracking reference, split, audio mod and resonance
   scaling, distortion and noise gate curves, output hack (bit reduction), grunge (a fold), unison detune.
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
@@ -48,7 +52,7 @@ for Chromium build 1194).
 ## Next steps
 1. Device: build, bench, play, save/reload a project (mpc-vst-plugins docs/PORTING.md section 4).
 2. Continue the DSP code reading: the remaining destinations' units, the feedback and delay paths, distortion, noise gate, output hack,
-   glide, unison detune.
+   unison detune. Glide is now from the voice CPU's table (docs/FIRMWARE.md section 8; the 40 MHz clock is assumed).
 3. An offline ADSP-219x interpreter as a reference rig for the digital half (docs/FIRMWARE.md section 4).
 4. Recordings of a real instrument for the analog half.
 5. The catalog route (docs/CATALOG.md of mpc-vst-plugins).

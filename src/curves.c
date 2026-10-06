@@ -66,5 +66,16 @@ float pe_delay_seconds(int v) {
     return s * (1.0f / 48000);
 }
 
-/* Glide rate: not in the tables found so far; an exponential from 5 ms to about 10 s. */
-float pe_glide_seconds(int v) { return v <= 0 ? 0 : 0.005f * exp2f(v * 0.11f); }
+/* Glide: seconds for an octave. The voice CPU (docs/FIRMWARE.md section 8) steps each oscillator's 8.8 pitch toward its target by a
+ * byte R(glide) every 2.5 timer ticks; R is a 101-entry table (255 at 0 and 1, 1 at 100, breakpoints here within 1 %). The tick is
+ * Timer 2: 4 x 10 x 51 = 2040 instruction clocks; at a 40 MHz clock (assumed: the clock is not in the file) that is 204 us, so a
+ * step every 510 us and 7.66 semitones per second per unit of R. */
+float pe_glide_seconds(int v) {
+    static const short bp[][2] = {{0, 255}, {2, 250}, {10, 170}, {11, 205}, {14, 190}, {21, 120}, {31, 90}, {51, 50}, {100, 1}};
+    if (v <= 0) return 0;
+    if (v > 100) v = 100;
+    float r = (float)bp[8][1];
+    for (int i = 1; i < 9; i++)
+        if (v <= bp[i][0]) { r = bp[i - 1][1] + (float)(v - bp[i - 1][0]) * (bp[i][1] - bp[i - 1][1]) / (bp[i][0] - bp[i - 1][0]); break; }
+    return 12.0f / (r * 7.66f);
+}

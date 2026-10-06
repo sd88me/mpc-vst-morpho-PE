@@ -9,4 +9,4 @@ float pe_env_tau_seconds(float v);      /* exponential decay time constant 0..11
 float pe_env_curve(float x);            /* exponential-shape attack: output for the linear ramp x in 0..1 */
 float pe_lfo_hz(int v);                 /* LFO frequency 0..150 (unsynced) */
 float pe_delay_seconds(int v);          /* delay tap time 0..150 (unsynced), the firmware's samples at 48 kHz */
-float pe_glide_seconds(int v);          /* glide 1..100 */
+float pe_glide_seconds(int v);          /* glide 1..100: seconds per octave */

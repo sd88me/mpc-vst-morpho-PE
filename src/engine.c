@@ -79,6 +79,7 @@ typedef struct {
     float dlen[3], damt[3];
     /* audio state */
     hb_t dec[2][2];
+    float sync_corr;              /* the part of a hard-sync jump still to add to the next oscillator 1 sample */
     float bpre[2];                /* last mixer input from the base-rate parts, for the upsampling interpolation */
     float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_env, gain_gate, dfb;
     int fpos, dpos, hp_cur;
@@ -750,6 +751,17 @@ static float analog_osc(int shape, float ph, float inc, float duty) {
     }
     }
 }
+/* The same waveform without band-limiting, for the jump hard sync causes. */
+static float naive_osc(int shape, float ph, float duty) {
+    float saw = 2 * ph - 1 + 0.02f * (1 - (2 * ph - 1) * (2 * ph - 1)) - 0.0133f;
+    float tri = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph;
+    switch (shape) {
+    case 0: return saw;
+    case 1: return tri;
+    case 2: return 0.5f * (saw + tri);
+    default: return (duty <= 0.0f || duty >= 1.0f) ? 0 : (ph < duty ? 1.0f : -1.0f) - (2 * duty - 1);
+    }
+}
 static float wave_read(const float *w, float ph) {
     float x = ph * PE_WLEN;
     int i = (int)x;
@@ -817,10 +829,24 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             v->ph[1] += inc2;
             int wrap2 = v->ph[1] >= 1;
             if (wrap2) v->ph[1] -= 1;
-            float o1 = analog_osc(v->shape[0], v->ph[0], inc1, v->duty[0]);
+            float o1 = analog_osc(v->shape[0], v->ph[0], inc1, v->duty[0]) + v->sync_corr;
+            v->sync_corr = 0;
             v->ph[0] += inc1;
             if (v->ph[0] >= 1) v->ph[0] -= 1;
-            if (sync && wrap2) v->ph[0] = v->ph[1] * v->inc[0] / v->inc[1];
+            if (sync && wrap2) {
+                /* hard sync: oscillator 2 wrapped d samples before the next one, resetting oscillator 1 to phase 0 there. The jump
+                 * D is band-limited with the polyBLEP kernels: this sample gets the part before the jump, the next one the rest. */
+                float d = v->ph[1] / inc2;
+                float pre = v->ph[0] - inc1 * d;
+                pre -= floorf(pre);
+                float jump = naive_osc(v->shape[0], 0, v->duty[0]) - naive_osc(v->shape[0], pre, v->duty[0]);
+                /* analog_osc already applies the kernel of its own wrap at phase 0 (a saw falls by 2, a pulse rises by 2) to the
+                 * first sample after the reset, so only the difference to that is left for the next sample */
+                static const float own[4] = {-2, 0, -1, 2};
+                o1 += 0.5f * jump * d * d;
+                v->sync_corr = 0.5f * (jump - own[v->shape[0] < 3 ? v->shape[0] : 3]) * (2 * d - d * d - 1);
+                v->ph[0] = v->ph[1] * v->inc[0] / v->inc[1];
+            }
             float nz = rnd(&v->rng) * v->noise * 0.5f;
             float in[2] = {o1 * v->lvl[0] * 0.5f + nz + v->bpre[0] + (bnow[0] - v->bpre[0]) * ti,
                            o2 * v->lvl[1] * 0.5f + nz + v->bpre[1] + (bnow[1] - v->bpre[1]) * ti};
