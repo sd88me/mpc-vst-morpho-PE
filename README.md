@@ -78,7 +78,9 @@ documented with its numbers in [docs/FIRMWARE.md](docs/FIRMWARE.md); the tools r
   recordings of a real instrument. The OTA limiting levels were set so the filter is clean at normal levels and self-oscillates near 0.5 (compared with OB-Xd), not measured on the instrument.
 - **The original's waves are not included** and could not be decoded from the Prophet VS ROM images; only the VS wave order for
   Evolver waves 82-92 is known in the single-cycle WAV. The rest load in file order (docs/FIRMWARE.md section 13).
-- **Not modelled:** the external audio input (its peak, envelope follower and the Ext In trigger modes), distortion and highpass
+- **Removed:** the external audio input. Its parameters stay in the program (so dumps load and re-save intact, marked "unused") but
+  it has no controls, no sound and no peak / envelope-follower sources; the Ext In trigger modes act like their keyboard counterparts.
+- **Not modelled:** distortion and highpass
   placed before the filter (settings 100-199), the sequencer's MIDI-out destinations (MPC takes no MIDI from a VST), and the
   oscillators' per-unit calibration.
 - **Estimated or assumed:** filter-frequency modulation depth, the 40 MHz voice-CPU clock, the audio-mod, split and key-tracking
@@ -108,8 +110,8 @@ Without any files, eight built-in programs of this project's own play on the ope
 ## Using it
 
 Eight tabs, grouped like the instrument's panel sections and in its signal order, with amber flow lines showing the path:
-**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **OSC** (oscillators 1-4, noise
-and external input feeding the filter), **FILTER** (low pass filter into the amplifier), **FX** (high pass, tuned feedback,
+**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **OSC** (oscillators 1-4 and noise
+feeding the filter), **FILTER** (low pass filter into the amplifier), **FX** (high pass, tuned feedback,
 distortion, delay, output hack, voice volume), **MOD** (envelope 3 and the four LFOs), **MODS** (the four modulators and the fixed
 controller routes), **SEQ 1-2** and **SEQ 3-4** (the step sequencer, one Q-Link page per track).
 

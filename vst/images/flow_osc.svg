@@ -9,8 +9,6 @@
 <circle cx="990" cy="535" r="5.5" fill="#f5b400"/>
 <path d="M1130,73 L1090,73" fill="none" stroke="#f5b400" stroke-width="3" stroke-linejoin="round"/>
 <circle cx="1130" cy="73" r="5.5" fill="#f5b400"/>
-<path d="M1130,227 L1090,227" fill="none" stroke="#f5b400" stroke-width="3" stroke-linejoin="round"/>
-<circle cx="1130" cy="227" r="5.5" fill="#f5b400"/>
 <path d="M1090,73 L1090,535" fill="none" stroke="#f5b400" stroke-width="3" stroke-linejoin="round"/>
 <path d="M1090,458 L1255,458" fill="none" stroke="#f5b400" stroke-width="3" stroke-linejoin="round"/>
 <circle cx="1090" cy="458" r="5.5" fill="#f5b400"/>

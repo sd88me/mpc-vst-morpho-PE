@@ -121,7 +121,7 @@ def main():
     emit('readout style=dotmatrix cx=470 cy=190 w=320 h=48 label="" key=patch_name')
     emit('readout style=dotmatrix cx=1095 cy=190 w=320 h=48 label="" key=bank_name')
     misc, _ = section(10, Y(1), "MISC PARAMETERS", [[("TRIGGER", "^trigger"), ("KEY MODE", "^key_mode"), ("KEY XPOSE", "key_xpose"),
-                       ("PITCH WHEEL", "bend_range"), ("ENV SHAPE", "^env_shape"), ("INPUT MODE", "^ext_mode"), ("INPUT HACK", "in_hack"),
+                       ("PITCH WHEEL", "bend_range"), ("ENV SHAPE", "^env_shape"),
                        ("VOICES", "voices")]])
     seq, _ = section(10, Y(2), "SEQUENCER", [[("RUN", "^seq_run"), ("CLOCK", "^clock_src"), ("BPM", "tempo"), ("CLOCK DIVIDE", "^clock_div"),
                       ("RESET", "seq_reset"), ("QUALITY", "^quality")]])
@@ -133,7 +133,7 @@ def main():
     qlinks("Program", ["program", "bank", "volume", "pan", "key_mode", "key_xpose", "bend_range", "voices",
                        "tempo", "clock_div", "trigger", "seq_run", "seq1_dest", "seq2_dest", "seq3_dest", "seq4_dest"])
 
-    # ---- OSC: four oscillators, noise and the external input, all into the filter
+    # ---- OSC: four oscillators and noise, all into the filter
     tab("OSC")
     fl = Flow("osc")
     o1, b1 = section(10, Y(0), "OSC 1  ANALOG  LEFT", [[("FREQUENCY", "osc1_freq"), ("FINE", "osc1_fine"), ("SHAPE/PW", "osc1_shape"),
@@ -145,18 +145,17 @@ def main():
     o4, b4 = section(10, Y(3), "OSC 4  DIGITAL  RIGHT", [[("FREQUENCY", "osc4_freq"), ("FINE", "osc4_fine"), ("WAVE", "osc4_shape"),
                       ("LEVEL", "osc4_level"), ("GLIDE", "osc4_glide"), ("FM 3>4", "fm_34"), ("RING 3>4", "rm_34")]])
     nz, bn = section(1130, Y(0), "NOISE", [[("LEVEL", "noise_level")]])
-    ex, be = section(1130, Y(1), "EXTERNAL IN", [[("LEVEL", "ext_level")]])
     bus = 1090
     for b in (b1, b2, b3, b4):
         fl.line((right(b), mid(b)), (bus, mid(b)), arrow=False)
-    for b in (bn, be):
+    for b in (bn,):
         fl.line((b[0], mid(b)), (bus, mid(b)), arrow=False)
     fl.line((bus, mid(bn)), (bus, mid(b4)), arrow=False, dot=False)
     yo = (mid(b3) + mid(b4)) // 2
     fl.line((bus, yo), (1255, yo))
     fl.label(1255, yo - 15, "LOW PASS", "end")
     fl.write()
-    qlinks("Analog", o1 + o2 + ["noise_level", "ext_level", "key_xpose", "bend_range"])
+    qlinks("Analog", o1 + o2 + ["noise_level", "key_xpose", "bend_range"])
     qlinks("Digital", o3 + o4 + ["shapeseq3", "shapeseq4"])
 
     # ---- FILTER: the low pass filter into the amplifier, laid out as the panel's two-row sections
@@ -170,8 +169,7 @@ def main():
                       [("ATTACK", "aenv_a"), ("DECAY", "aenv_d"), ("SUSTAIN", "aenv_s"), ("RELEASE", "aenv_r")]])
     fl.label(20, 200, "OSC")
     fl.label(20, 220, "NOISE")
-    fl.label(20, 240, "EXT IN")
-    fl.line((22, 260), (150, 260), dot=False)
+    fl.line((22, 240), (150, 240), dot=False)
     fl.line((220, bottom(bl)), (220, ba[1]))
     fl.line((right(ba), mid(ba)), (1255, mid(ba)))
     fl.label(1255, mid(ba) - 15, "HIGH PASS", "end")
@@ -225,8 +223,7 @@ def main():
                         ("AMOUNT", "mod%d_amt" % (n + 1))]])
         mods += k
     fixed = []
-    pairs = [("MOD WHEEL", "wheel"), ("PRESSURE", "press"), ("BREATH", "breath"), ("VELOCITY", "vel"), ("FOOT CONTROLLER", "foot"),
-             ("IN PEAK", "peak"), ("IN ENV FOLLOWER", "envf")]
+    pairs = [("MOD WHEEL", "wheel"), ("PRESSURE", "press"), ("BREATH", "breath"), ("VELOCITY", "vel"), ("FOOT CONTROLLER", "foot")]
     for i, (title, k) in enumerate(pairs):
         keys, _ = section(450 + 300 * (i % 2), Y(i // 2), title, [[("AMOUNT", "%s_amt" % k), ("DESTINATION", "%s_dest" % k)]])
         fixed += keys

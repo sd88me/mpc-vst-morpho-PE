@@ -40,8 +40,9 @@
 - Still guessed: filter-frequency modulation depth (an estimate, 56 semitones), split, the sequencer destinations, audio-mod and filter
   key-tracking scales, the cutoff in Hz (calibrated analog hardware). Unison detune is the main CPU's table (2026-10-07, docs/FIRMWARE.md
   section 12): -1/+1/-3/+3 and -3/+3/-8/+8 cents.
-- External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
-  plugin: the Ext In trigger modes act like their keyboard counterparts and the input sources read zero.
+- The external audio input is removed from the plugin (2026-10-07): no skin controls (Ext In level, input mode, input hack, the peak and
+  envelope-follower routes) and no sound; its parameters stay in the program as "unused" so dumps load and save unchanged, the Ext In
+  trigger modes act like their keyboard counterparts and the input sources read zero.
 - Sequencer MIDI-out destinations (notes, velocity, controllers) are ignored: MPC does not take MIDI from a VST.
 - Device (Force, 2026-10-07): deployed to /sdcard/Synths/sd88me - VST - Morpho-PE (settings backup MPC.settings.bak-sync-20261006-195200), MPC
   restarted, plugin listed. Bench (docs/BENCH.md): 4 voices 17 % of a block at Eco (1x), about 31 % at 2x, p99 near that; idle 3.8 %; the

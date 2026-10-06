@@ -547,7 +547,7 @@
   },
   {
    "key": "ext_level",
-   "name": "Ext In",
+   "name": "Ext In (unused)",
    "min": 0,
    "max": 100,
    "default": 0,
@@ -555,7 +555,7 @@
   },
   {
    "key": "ext_mode",
-   "name": "Input Mode",
+   "name": "Input Mode (unused)",
    "options": [
     "Stereo",
     "Mono Left",
@@ -566,7 +566,7 @@
   },
   {
    "key": "in_hack",
-   "name": "Input Hack",
+   "name": "Input Hack (unused)",
    "min": 0,
    "max": 14,
    "default": 0,
@@ -1055,7 +1055,7 @@
   },
   {
    "key": "peak_amt",
-   "name": "In Peak Amt",
+   "name": "In Peak Amt (unused)",
    "min": 0,
    "max": 198,
    "default": 99,
@@ -1064,7 +1064,7 @@
   },
   {
    "key": "peak_dest",
-   "name": "In Peak Dest",
+   "name": "In Peak Dest (unused)",
    "min": 0,
    "max": 68,
    "default": 0,
@@ -1073,7 +1073,7 @@
   },
   {
    "key": "envf_amt",
-   "name": "In EnvF Amt",
+   "name": "In EnvF Amt (unused)",
    "min": 0,
    "max": 198,
    "default": 99,
@@ -1082,7 +1082,7 @@
   },
   {
    "key": "envf_dest",
-   "name": "In EnvF Dest",
+   "name": "In EnvF Dest (unused)",
    "min": 0,
    "max": 68,
    "default": 0,

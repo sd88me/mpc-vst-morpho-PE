@@ -51,8 +51,8 @@ P = (osc(1, 1) + osc(2, 1) + osc(3, 0) + osc(4, 0) + [
     ("trigger", "Trigger", 13, 0, TRIGS), ("key_xpose", "Key Xpose", 73, 13, "xpose"),
     ("seq1_dest", "Seq1 Dest", 75, 0, "sdest"), ("seq2_dest", "Seq2 Dest", 75, 0, "sdest"),
     ("seq3_dest", "Seq3 Dest", 75, 0, "sdest"), ("seq4_dest", "Seq4 Dest", 75, 0, "sdest"),
-    ("noise_level", "Noise", 100, 0, "int"), ("ext_level", "Ext In", 100, 0, "int"), ("ext_mode", "Input Mode", 3, 0, EXTMODE),
-    ("in_hack", "Input Hack", 14, 0, "int"),
+    ("noise_level", "Noise", 100, 0, "int"), ("ext_level", "Ext In (unused)", 100, 0, "int"), ("ext_mode", "Input Mode (unused)", 3, 0, EXTMODE),
+    ("in_hack", "Input Hack (unused)", 14, 0, "int"),
     ("osc1_glide", "Osc1 Glide", 200, 0, "glide"), ("sync", "Sync 2>1", 1, 0, "onoff"), ("tempo", "BPM", 250, 120, "tempo"),
     ("clock_div", "Clock Div", 12, 6, CLKDIV), ("osc2_glide", "Osc2 Glide", 200, 0, "glide"), ("slop", "Osc Slop", 5, 0, "int"),
     ("bend_range", "Bend Range", 12, 2, "int"), ("key_mode", "Key Mode", 23, 4, KEYMODES),
@@ -67,8 +67,8 @@ P = (osc(1, 1) + osc(2, 1) + osc(3, 0) + osc(4, 0) + [
     ("dly3_time", "Delay3 Time", 166, 70, "dtime"), ("dly3_level", "Delay3 Amt", 100, 0, "int"), ("dist", "Distortion", 199, 0, "dist")]
     + lfo(3) + lfo(4) + [
     ("env3_delay", "Env3 Delay", 100, 0, "int"), ("env3_vel", "Env3 Velocity", 100, 0, "int"),
-    ("peak_amt", "In Peak Amt", 198, 99, "s99"), ("peak_dest", "In Peak Dest", 68, 0, "dest"),
-    ("envf_amt", "In EnvF Amt", 198, 99, "s99"), ("envf_dest", "In EnvF Dest", 68, 0, "dest"),
+    ("peak_amt", "In Peak Amt (unused)", 198, 99, "s99"), ("peak_dest", "In Peak Dest (unused)", 68, 0, "dest"),
+    ("envf_amt", "In EnvF Amt (unused)", 198, 99, "s99"), ("envf_dest", "In EnvF Dest (unused)", 68, 0, "dest"),
     ("vel_amt", "Velocity Amt", 198, 99, "s99"), ("vel_dest", "Velocity Dest", 68, 0, "dest"),
     ("wheel_amt", "ModWheel Amt", 198, 99, "s99"), ("wheel_dest", "ModWheel Dest", 68, 0, "dest"),
     ("press_amt", "Pressure Amt", 198, 99, "s99"), ("press_dest", "Pressure Dest", 68, 0, "dest"),
