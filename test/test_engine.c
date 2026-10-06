@@ -59,6 +59,10 @@ int main(void) {
         CHECK(r > 0.005 && r < 0.6, "program %d \"%s\" sounds (rms %.3f)", p + 1, name, r);
     }
 
+    /* the programs above release slowly (the firmware's release is an exponential of up to 4 x 18 s): start from a fresh instance */
+    E->destroy(h);
+    h = E->create(NULL);
+
     /* pitch: Basic Program (osc 1+2 sawtooth at C0, key transpose -24) plays A4 at 440 Hz */
     setp(h, "program", 0);
     setp(h, "osc2_level", 0); setp(h, "lpf_freq", 164);
@@ -68,9 +72,10 @@ int main(void) {
     double f = zc_freq(buf, 128 * 200);
     CHECK(fabs(f - 440) < 2, "A4 plays at %.1f Hz", f);
     midi3(h, 0x80, 69, 0);
-    render(h, 200, &pk, NULL);
+    double early = render(h, 100, &pk, NULL);
+    render(h, 1500, &pk, NULL);   /* release 30 = a time constant of 4 x 83 ms */
     double tail = render(h, 50, &pk, NULL);
-    CHECK(tail < 1e-4, "release dies away (rms %.6f)", tail);
+    CHECK(early > 3 * tail && tail < 1e-4, "release dies away (rms %.6f, then %.6f)", early, tail);
 
     /* digital oscillator alone, wave 1 (sine) */
     setp(h, "osc1_level", 0); setp(h, "osc3_level", 100); setp(h, "osc3_shape", 0);

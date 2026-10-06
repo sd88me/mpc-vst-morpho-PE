@@ -20,7 +20,8 @@
 - `test_port.sh`: "six data wheel clicks step six" fails on Osc1 Freq (0-120): a wheel click is 1.2 steps and the wrapper
   rounds it to 2. Every parameter with a range of 101-149 behaves so. A wrapper fix is proposed separately; `nudge_pct` is
   not used because it makes sweeps run fast on these ranges.
-- Guessed, not measured: the envelope tick rate (3 kHz), modulation depth per destination (table `DR` in `src/engine.c`), glide
+- Measured in the DSP code (docs/FIRMWARE.md section 6): envelope tick rate, shapes and times; modulation depth of filter frequency, LFO
+  frequency and envelope rates. Still guessed: the Env 3 delay time, modulation depth of the other destinations (table `DR`), glide
   times, filter cutoff scale (16.35 Hz at 0, semitone steps), filter key tracking reference, split, audio mod and resonance
   scaling, distortion and noise gate curves, output hack (bit reduction), grunge (a fold), unison detune.
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
@@ -35,8 +36,8 @@ for Chromium build 1194).
 
 ## Next steps
 1. Device: build, bench, play, save/reload a project (mpc-vst-plugins docs/PORTING.md section 4).
-2. Disassemble the DSP code (needs the ADSP-219x instruction set reference) to replace the guesses above with the firmware's
-   own arithmetic, starting with modulation scaling, the envelope generator and the feedback path.
+2. Continue the DSP code reading: the remaining destinations' units, the feedback and delay paths, distortion, noise gate, output hack,
+   glide, unison detune.
 3. An offline ADSP-219x interpreter as a reference rig for the digital half (docs/FIRMWARE.md section 4).
 4. Recordings of a real instrument for the analog half.
 5. The catalog route (docs/CATALOG.md of mpc-vst-plugins).

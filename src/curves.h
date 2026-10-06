@@ -4,7 +4,9 @@
 float pe_note_hz(float semis);          /* osc frequency: 0 = C-2 (8.18 Hz), semitone steps (MIDI note numbers) */
 float pe_lpf_hz(float v);               /* lowpass cutoff 0..164, semitones from C0 */
 float pe_hpf_hz(float v);               /* 4-pole highpass 1..99, semitones; 99 = 21.55 kHz */
-float pe_env_seconds(float v);          /* envelope attack/decay/release 0..110 */
+float pe_env_seconds(float v);          /* envelope attack ramp time 0..110 (also the linear decay's full-scale time) */
+float pe_env_tau_seconds(float v);      /* exponential decay time constant 0..110 (release: 4x) */
+float pe_env_curve(float x);            /* exponential-shape attack: output for the linear ramp x in 0..1 */
 float pe_lfo_hz(int v);                 /* LFO frequency 0..150 (unsynced) */
 float pe_delay_seconds(int v);          /* delay tap time 0..150 (unsynced), the firmware's samples at 48 kHz */
 float pe_glide_seconds(int v);          /* glide 1..100 */

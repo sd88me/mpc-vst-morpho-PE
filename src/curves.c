@@ -16,13 +16,30 @@ static float interp_log(const float (*bp)[2], int n, float v) {
     return bp[n - 1][1];
 }
 
-/* The envelope rate table is 111 step sizes; full scale / step = these tick counts (log-interpolated breakpoints, within a few
- * percent of every entry). The firmware's envelope tick rate is not in the tables: 3 kHz is an assumption (docs/FIRMWARE.md). */
+/* Envelope timing (DSP 3.5, docs/FIRMWARE.md section 6). The envelope routines run once per four samples: 12 kHz. Two 111-entry
+ * tables serve them, both breakpoint-fitted here (log interpolation, within 4 % of every entry):
+ *  - attack: a linear ramp that takes exactly the table's round millisecond counts (1 ms ... 10 s at 100, 44.7 s at 110); the
+ *    same numbers are the full-scale time of the linear decay (and 4x that for the linear release);
+ *  - decay and release: the level closes a fixed fraction of the way to its target every tick, i.e. an exponential; this table is
+ *    the time constant in ms (decay; the release is 4x slower). */
 float pe_env_seconds(float v) {
-    static const float bp[][2] = {{0, 3.3f}, {1, 7.9f}, {3, 14.9f}, {5, 26.3f}, {10, 62.5f}, {15, 111.1f}, {19, 199.8f}, {20, 221.4f},
-        {30, 496.5f}, {43, 1024}, {59, 2048}, {70, 2892.6f}, {80, 4415.1f}, {85, 6035}, {90, 9020}, {95, 14717}, {100, 25420},
-        {103, 33554}, {106, 47935}, {108, 67109}, {110, 111848}};
-    return interp_log(bp, sizeof bp / sizeof bp[0], v) * (1.0f / 3000);
+    static const float bp[][2] = {{0, 1}, {1, 2}, {2, 3}, {4, 5}, {6, 7}, {9, 10}, {11, 14}, {15, 22}, {25, 52}, {35, 100}, {40, 150},
+        {45, 200}, {49, 280}, {63, 680}, {72, 1100}, {76, 1500}, {81, 2000}, {86, 3000}, {91, 4000}, {96, 6000}, {99, 8998},
+        {105, 16947}, {107, 23797}, {110, 44739}};
+    return interp_log(bp, sizeof bp / sizeof bp[0], v) * 0.001f;
+}
+float pe_env_tau_seconds(float v) {
+    static const float bp[][2] = {{0, 0.5556f}, {1, 1.312f}, {5, 4.386f}, {9, 9.259f}, {12, 13.89f}, {16, 20.83f}, {19, 33.3f},
+        {23, 50.1f}, {28, 73.8f}, {41, 160.6f}, {51, 227.6f}, {59, 341.3f}, {75, 582.5f}, {84, 932.1f}, {91, 1645}, {104, 6214},
+        {106, 7989}, {108, 11185}, {110, 18641}};
+    return interp_log(bp, sizeof bp / sizeof bp[0], v) * 0.001f;
+}
+/* The exponential-shape attack: the output is this curve of the linear ramp x (0..1), 128 entries in the firmware, the first
+ * ones to x = 1/128 steps; within 0.6 % of full scale of every entry. */
+float pe_env_curve(float x) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    return (1 - expf(-1.3f * x)) / (1 - expf(-1.3f));
 }
 
 /* Unsynced LFO: round decimal frequencies up to 89 (piecewise linear), then semitones from 8.18 Hz (C-2) at 90 to 261.6 Hz at 150. */

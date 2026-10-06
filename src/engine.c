@@ -45,13 +45,16 @@ static const float SYNC_STEPS[16] = {32, 16, 8, 4, 2, 1, 0.5f, 0.25f, 0.125f, 0.
 /* Steps per beat for each clock divide, and the swing (fraction of a step the odd steps are delayed by). */
 static const float DIV_MULT[13] = {0.5f, 1, 2, 2, 2, 3, 4, 4, 4, 6, 8, 12, 24};
 static const float DIV_SWING[13] = {0, 0, 0, 1.0f / 6, 1.0f / 3, 0, 0, 1.0f / 6, 1.0f / 3, 0, 0, 0, 0};
-/* Modulation depth: destination units reached by a full-scale source at amount 99 (or 100 for LFOs). */
+/* Modulation depth: destination units reached by a full-scale source at amount 99 (or 100 for LFOs). Measured in the firmware
+ * (docs/FIRMWARE.md section 7): filter frequency (20), LFO frequency (38-42) and envelope rates (52-63); the rest are still the
+ * destination's full range. */
 static const float DR[69] = {0, 60, 60, 60, 60, 60, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 100, 100, 100, 100,
-    164, 100, 100, 99, 100, 6, 48, 100, 150, 150, 150, 150, 100, 100, 100, 100, 100, 100, 150, 150, 150, 150, 150,
-    100, 100, 100, 100, 100, 99, 99, 99, 99, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 110, 164, 164, 100, 100, 99};
+    157, 100, 100, 99, 100, 6, 48, 100, 150, 150, 150, 150, 100, 100, 100, 100, 100, 100, 100, 100,
+    100, 100, 100, 100, 100, 100, 100, 100, 99, 99, 99, 99, 50, 50, 50, 50, 50, 50, 50, 50,
+    50, 50, 50, 50, 164, 164, 100, 100, 99};
 
 enum { ST_IDLE, ST_DELAY, ST_ATT, ST_DEC, ST_SUS, ST_REL };
-typedef struct { int st; float lvl, t; } env_t;
+typedef struct { int st; float lvl, x, t; } env_t;
 typedef struct { float ph, out, hold; } lfo_t;
 typedef struct { int pos[4], running, gate, once, steps_done; float phase, gate_t, cur[4]; } seq_t;
 
@@ -105,7 +108,7 @@ typedef struct {
 } pe_t;
 
 static float G_TAB[4096];        /* ladder G = g/(1+g), g = tan(pi f / fs), at 1/16 semitone from C0 - 48 semitones */
-static float ENV_S[441];         /* envelope seconds at quarter steps of 0..110 */
+static float ENV_S[441], ENV_T[441];   /* envelope ramp time and decay time constant at quarter steps of 0..110 */
 static float LFO_HZ[151];
 
 /* ---------------- helpers ---------------- */
@@ -125,7 +128,7 @@ static void init_tables(void) {
         float g = tanf(3.14159265f * f / FS);
         G_TAB[i] = g / (1 + g);
     }
-    for (int i = 0; i <= 440; i++) ENV_S[i] = pe_env_seconds(i * 0.25f);
+    for (int i = 0; i <= 440; i++) { ENV_S[i] = pe_env_seconds(i * 0.25f); ENV_T[i] = pe_env_tau_seconds(i * 0.25f); }
     for (int i = 0; i <= 150; i++) LFO_HZ[i] = pe_lfo_hz(i);
     done = 1;
 }
@@ -138,6 +141,7 @@ static float lpf_G(float semis) {
 }
 
 static float env_s(float v) { return ENV_S[clampi((int)(v * 4 + 0.5f), 0, 440)]; }
+static float env_tau(float v) { return ENV_T[clampi((int)(v * 4 + 0.5f), 0, 440)]; }
 
 static float steps_per_sec(const pe_t *s) {
     float bpm = (s->clock_src && s->host_bpm > 0) ? s->host_bpm : (float)P(s, P_TEMPO);
@@ -293,30 +297,37 @@ static void select_program(pe_t *s, int p) {
 /* ---------------- envelopes and LFOs ---------------- */
 /* 1 - exp(-x), cheap: exact enough for the small per-tick steps of these envelopes */
 static float one_minus_exp(float x) { return x < 0.05f ? x * (1 - 0.5f * x) : 1 - expf(-x); }
-static void env_gate(env_t *e, int on, float delay_s) {
-    if (on) { e->st = delay_s > 0 ? ST_DELAY : ST_ATT; e->t = 0; }
+static void env_gate(env_t *e, int on, float delay_s, int lin) {
+    if (on) {   /* a retrigger resumes the ramp at the current level (the firmware searches its curve backwards for it) */
+        e->st = delay_s > 0 ? ST_DELAY : ST_ATT; e->t = 0;
+        e->x = lin ? e->lvl : -logf(1 - e->lvl * (1 - expf(-1.3f))) * (1 / 1.3f);
+    }
     else if (e->st != ST_IDLE) e->st = ST_REL;
 }
-static float env_tick(env_t *e, float a, float d, float sus, float r, int lin, float delay_s) {
+/* The firmware's envelope (docs/FIRMWARE.md section 6): attack is a linear ramp of x (full scale in the attack table's time), the
+ * level being x itself (linear shape) or pe_env_curve(x) (exponential shape). Decay and release: linear shape subtracts a fixed
+ * slope (full scale in the table's time, release 4x), exponential shape closes a fraction of the distance every tick (decay time
+ * constant tau, release 4 tau). rv/dv are the rate values (0..110 plus modulation). */
+static float env_tick(env_t *e, float av, float dv, float sus, float rv, int lin, float delay_s) {
     switch (e->st) {
     case ST_DELAY:
         e->t += DT;
         if (e->t >= delay_s) e->st = ST_ATT;
         break;
     case ST_ATT:
-        if (lin) e->lvl += DT / fmaxf(a, 1e-4f);
-        else e->lvl += (1.3f - e->lvl) * one_minus_exp(DT * 1.466f / fmaxf(a, 1e-4f));
-        if (e->lvl >= 1) { e->lvl = 1; e->st = ST_DEC; }
+        e->x += DT / fmaxf(env_s(av), 1e-4f);
+        if (e->x >= 1) { e->x = 1; e->lvl = 1; e->st = ST_DEC; }
+        else e->lvl = lin ? e->x : pe_env_curve(e->x);
         break;
     case ST_DEC:
-        if (lin) { e->lvl -= DT / fmaxf(d, 1e-4f); if (e->lvl <= sus) { e->lvl = sus; e->st = ST_SUS; } }
-        else { e->lvl += (sus - e->lvl) * one_minus_exp(DT * 4.6f / fmaxf(d, 1e-4f)); if (fabsf(e->lvl - sus) < 1e-4f) e->st = ST_SUS; }
+        if (lin) { e->lvl -= DT / fmaxf(env_s(dv), 1e-4f); if (e->lvl <= sus) { e->lvl = sus; e->st = ST_SUS; } }
+        else { e->lvl += (sus - e->lvl) * one_minus_exp(DT / fmaxf(env_tau(dv), 1e-4f)); if (fabsf(e->lvl - sus) < 1e-4f) e->st = ST_SUS; }
         break;
     case ST_SUS: e->lvl = sus; break;
     case ST_REL:
-        if (lin) e->lvl -= DT / fmaxf(r, 1e-4f);
-        else e->lvl -= e->lvl * one_minus_exp(DT * 4.6f / fmaxf(r, 1e-4f));
-        if (e->lvl <= 1e-4f) { e->lvl = 0; e->st = ST_IDLE; }
+        if (lin) e->lvl -= DT / fmaxf(4 * env_s(rv), 1e-4f);
+        else e->lvl -= e->lvl * one_minus_exp(DT / fmaxf(4 * env_tau(rv), 1e-4f));
+        if (e->lvl <= 1e-4f) { e->lvl = 0; e->x = 0; e->st = ST_IDLE; }
         break;
     default: e->lvl = 0;
     }
@@ -395,7 +406,7 @@ static float glide_rate(const pe_t *s, int osc, int legato) {
 }
 static void voice_trigger(pe_t *s, voice_t *v, int on) {
     float d3 = env_s(P(s, P_ENV3_DELAY));
-    for (int e = 0; e < 3; e++) env_gate(&v->env[e], on, e == 2 ? d3 : 0);
+    for (int e = 0; e < 3; e++) env_gate(&v->env[e], on, e == 2 ? d3 : 0, P(s, P_ENV_SHAPE));
     if (on) {
         v->sounding = 1;
         static const int la[4] = {P_LFO1_AMT, P_LFO2_AMT, P_LFO3_AMT, P_LFO4_AMT};
@@ -523,9 +534,9 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
     static const int ep[3][4] = {{P_FENV_A, P_FENV_D, P_FENV_S, P_FENV_R}, {P_AENV_A, P_AENV_D, P_AENV_S, P_AENV_R}, {P_ENV3_A, P_ENV3_D, P_ENV3_S, P_ENV3_R}};
     int lin = P(s, P_ENV_SHAPE);
     for (int e = 0; e < 3; e++) {
-        float a = env_s(P(s, ep[e][0]) + dp[52 + e] + dp[55]);
-        float dd = env_s(P(s, ep[e][1]) + dp[56 + e] + dp[59]);
-        float r = env_s(P(s, ep[e][3]) + dp[60 + e] + dp[63]);
+        float a = P(s, ep[e][0]) - dp[52 + e] - dp[55];
+        float dd = P(s, ep[e][1]) - dp[56 + e] - dp[59];
+        float r = P(s, ep[e][3]) - dp[60 + e] - dp[63];
         env_tick(&v->env[e], a, dd, P(s, ep[e][2]) / 100.0f, r, lin, env_s(P(s, P_ENV3_DELAY)));
     }
     float velf = 1 - P(s, P_LPF_VEL) / 100.0f * (1 - vel), vela = 1 - P(s, P_VCA_VEL) / 100.0f * (1 - vel), vel3 = 1 - P(s, P_ENV3_VEL) / 100.0f * (1 - vel);

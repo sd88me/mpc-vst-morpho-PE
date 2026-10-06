@@ -57,7 +57,7 @@ takes them (README "Your own sounds and waves").
 - **Read the DSP code.** With the *ADSP-219x DSP Instruction Set Reference* (Analog Devices, 82-000390-07), a disassembler
   for the 24-bit words is a few hundred lines. It would identify the remaining tables, the envelope tick rate, the
   modulation depth per destination, the feedback and delay paths, the distortion curve and noise gate, and the output hack.
-  The reference could not be downloaded in this session (the environment's network policy blocks analog.com).
+  Done 2026-10-06: `tools/fw/adsp219x_dis.py` (section 6).
 - **Run the DSP as a reference.** An ADSP-219x interpreter running DSP 3.5 offline would do for the digital half what the
   Microwave firmware did for Clementine-XT: render oscillators 3/4, envelopes, LFOs, the highpass, feedback, delay and
   distortion for comparison. The voice CPU (PIC18) sends it parameters over a host port that would need emulating as
@@ -77,3 +77,38 @@ takes them (README "Your own sounds and waves").
 - **A single-cycle WAV** of VS waves (48 kHz float, 104 cycles of about 366.6 samples marked by cue points) matched none of
   the 64 dumped RAM and ROM-cartridge waves, so it most likely holds the internal ROM waves; which cycle is which VS wave
   number is not known yet.
+
+## 6. The DSP code (2026-10-06, `tools/fw/adsp219x_dis.py`)
+
+The disassembler decodes the whole image (5 725 words, no unknown words) from the ISR's chapter 8. Structure found with it:
+
+- **Frame loop.** A serial-port interrupt (vector 0x00C0) shifts the 8-slot output frame out and sets a flag (DM 0xF78C) once
+  per frame, at the 48 kHz sample rate (the delay table's 48 000 = 1 s). The main loop (0x0E02) waits for it, runs the per-sample
+  audio (0x0200), then **one of four stages** (the address in DM 0xF7A7 steps 0x0E0A, 0x0E4E, 0x0E93, 0x0F40). Envelopes and
+  LFOs therefore update once per four samples: **12 kHz**. Check: the LFO phase is a 32-bit word that resets on signed overflow
+  (a 2^31 cycle) and adds the 0x1E8E entry times 4 per update: entry 0 gives 12 000 x 4 x 1491 / 2^31 = 0.03333 Hz, the
+  manual's 30 s.
+- **Envelope** (routine 0x071D, three calls: filter, amp, env 3; stage flags 32 gate, 2 attack, 4 decay, 8 sustain). All use a
+  rate index = parameter - modulation (accumulator >> 9), limited to 0-110.
+  - Attack adds the 0x1C67 entry x 16 to a 32-bit level each tick: a **linear ramp**. The entries are 2^25 / (3 n) with n =
+    1, 2 ... 10, 12 ... 30 ... 100 ... 10 000 at 100 ... 44 739 at 110: **round millisecond counts** (full scale takes 12 n ticks
+    = n ms), which is what fixes the tick rate. In the exponential shape (DM 0xF67A = 0) the level is a **curve of the ramp**,
+    the 128-entry table at 0x1D45 (reverse-searched when a note retriggers): (1 - e^(-1.3 x)) / (1 - e^(-1.3)), x = (i + 1) / 128,
+    within 0.6 % of full scale of every entry.
+  - Exponential decay: every tick the level closes (0x1CD6 entry) / 2^24 of its distance to the sustain level (time constant
+    2^24 / entry ticks: 0.56 ms at 0, 18.6 s at 110; 19 breakpoints, within 4 %). Release does the same to zero with the entry /
+    2^26 (4x slower) and ends when the high word reaches 0.
+  - Linear shape (DM 0xF67A != 0): decay subtracts the attack-table slope (full scale in n ms), release a quarter of it (4 n ms).
+- The old guesses (3 kHz, 1.3 overshoot, 4.6 time constants) are replaced in `src/curves.c` and `env_tick`. The Env 3 delay stage
+  was not located: it still reads the attack table (a guess).
+- **Modulation** is summed per destination into 16-bit accumulators (DM[0xF812 + destination], swapped each frame; group
+  destinations fan out at 0x16D5-0x17BA) and read back by the consumers with a per-destination unit. Source depth: the table at
+  0x1DC5 maps an amount 0-100 to 0, 50, 100, 150, 200, 300, 400, 600, 800, 1100, 1500, 1900, 2300, 2800, 3300, 3700 (0-15), then
+  256 x amount (4096 at 16 ... 25 600 at 100); amounts 101-200 (LFO/negative) repeat it. The routing code multiplies it by the source
+  (assumed fractional multiply: amount 100 = 25 600 units). Units per step seen so far: LFO frequency 256 (so 100 steps at amount
+  100), envelope rates 512 (50 steps; a positive amount shortens the time), filter cutoff 163 (157 steps). `DR` in `src/engine.c`
+  uses these three; the other destinations are not traced yet.
+- 0x19F0-0x1A71 are 2^(k/12) ratio tables used at boot (0x050E) to build the 64-entry control-voltage tables for the analog
+  oscillators and filter from the voice CPU's calibration values: they cannot give a cutoff in Hz without that calibration.
+- Tuned feedback: 0x19C0 is its period table (read at 0x0248: 12 semitone entries, linear interpolation, octave folding by
+  subtracting 0x0C00); 0x1940 feeds the oscillator increment code at 0x1200.
