@@ -197,3 +197,16 @@ and read through the PSV window (data address 0x8000 + program address; byte n o
   scales are in the voice CPU or the DSP, not in this image; tempo and clock divide are copied to 0x0CB2/0x0CB3 and sent on (the sync
   arithmetic is the DSP's, section 3). The modulation routing is the DSP's (sections 6 and 11).
 
+
+## 13. Which Prophet VS wave each cycle of the single-cycle WAV is (2026-10-07)
+
+Anchors from the VS manual's wave list (VS waves 32-34, 45/46, 56, 58, 60, 75/76, 113-127) and a forum list of the Evolver's own names
+(Evolver wave = VS wave - 31; wave 96 is Evolver-only; 93 is not named): the WAV cycles whose spectra match their descriptions exactly are
+74 and 75 (bell partials, Evolver 82, 83), 76 (saw 3rd and 5th, 84), 77 (two sines an octave and a fifth apart, 85), 78 and 79 (two sines
+two and four octaves apart, 86 and 87: harmonics 1+4 and 1+16 to 0.999), 80 and 81 (two saws, 88 and 89) and 82-84 (two squares, 90-92).
+So cycle c is Evolver wave c + 8 for c = 74-84, and the engine puts those cycles in slots 82-92. The offset does not hold for the lower
+cycles ("3rd and 5th, no fundamental" and "heavy 7th" do not fall where it predicts; the 7th-harmonic cycle is 55), no cycle is blank
+(wave 95), and cycles 0 and 92 look alike, so the recording has an order or extras not yet understood. The Prophet VS ROM images (v1.1
+and v1.2, a high and a low byte chip): each 32 KB chip is 16 KB of code (different between versions) and 16 KB identical in both (128 blocks
+of 128 bytes; block 255 is random bytes, so it is the noise wave 127); the waves in them are not stored as plain consecutive 16-bit samples
+(no permutation of the sample address makes them smooth) and could not be decoded.
