@@ -20,6 +20,9 @@
 
 #define FS 44100.0f
 #define MAXV 8
+#ifndef PE_DEFAULT_OS
+#define PE_DEFAULT_OS 2     /* analog section oversampling at start-up; the Quality parameter changes it */
+#endif
 #define CTL 8
 #define DT (CTL / FS)
 #define DLEN 65536           /* delay memory per voice: > 1 s at 44.1 kHz */
@@ -774,12 +777,12 @@ static float wave_read(const float *w, float ph) {
 }
 
 static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in) {
-    float g0 = G0 / (1 - G0);
     int ns = four ? 4 : 2;
     float Gs[4], a = 1, b = 0;
     for (int j = 0; j < ns; j++) {
-        float gj = g0 * (1 - nl[j]);
-        Gs[j] = gj / (1 + gj);
+        /* cutoff of an OTA that has begun to limit: g(1 - n) in G = g / (1 + g) terms, to second order in n (no division) */
+        float n = nl[j];
+        Gs[j] = G0 * (1 - n) * (1 + n * G0 * (1 + n * G0));
         b = Gs[j] * b + (1 - Gs[j]) * st[j];
         a *= Gs[j];
     }
@@ -789,7 +792,7 @@ static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in
         float vv = (prev - st[j]) * Gs[j], yy = vv + st[j];
         st[j] = yy + vv;
         float u = (prev - yy) * 0.5f;
-        nl[j] = fabsf(u) < 0.01f ? 0 : 1 - ftanh(u) / u;
+        nl[j] = u * u / (3 + u * u);        /* 1 - tanh(u) / u, roughly */
         prev = yy;
     }
     if (!four) st[2] = st[3] = 0;
@@ -954,7 +957,7 @@ static void *pe_create(const char *dir) {
     s->cc_vol = 1;
     s->last_note = 60;
     s->clock_src = 1;
-    s->os = 2;
+    s->os = PE_DEFAULT_OS;
     s->rng = 0x13579BDFu;
     for (int i = 0; i < MAXV; i++) {
         s->v[i].dly = calloc(DLEN, sizeof(float));
@@ -1045,8 +1048,22 @@ static void pe_midi(void *h, const uint8_t *m, int len) {
     }
 }
 
+/* Denormal floats (a filter or delay tail dying away) are slow on ARM's scalar VFP and on x86 unless flushed to zero. */
+#if defined(__arm__) && !defined(__aarch64__)
+static unsigned ftz_on(void) { unsigned f; __asm__ volatile("vmrs %0, fpscr" : "=r"(f)); __asm__ volatile("vmsr fpscr, %0" : : "r"(f | (1u << 24))); return f; }
+static void ftz_off(unsigned f) { __asm__ volatile("vmsr fpscr, %0" : : "r"(f)); }
+#elif defined(__SSE__)
+#include <xmmintrin.h>
+static unsigned ftz_on(void) { unsigned f = _mm_getcsr(); _mm_setcsr(f | 0x8040); return f; }
+static void ftz_off(unsigned f) { _mm_setcsr(f); }
+#else
+static unsigned ftz_on(void) { return 0; }
+static void ftz_off(unsigned f) { (void)f; }
+#endif
+
 static void pe_render(void *h, int16_t *out, int frames) {
     pe_t *s = h;
+    unsigned fpcr = ftz_on();
     float buf[2 * CTL];
     float sps = steps_per_sec(s);
     int running = s->seq_run == 1 || (s->seq_run == 2 && s->transport);
@@ -1078,6 +1095,7 @@ static void pe_render(void *h, int16_t *out, int frames) {
             out[2 * f + i] = (int16_t)lrintf(x * 32767);
         }
     }
+    ftz_off(fpcr);
 }
 
 /* ---------------- parameters ---------------- */

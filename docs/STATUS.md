@@ -42,6 +42,10 @@
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
   plugin: the Ext In trigger modes act like their keyboard counterparts and the input sources read zero.
 - Sequencer MIDI-out destinations (notes, velocity, controllers) are ignored: MPC does not take MIDI from a VST.
+- Device (Force, 2026-10-07): deployed to /sdcard/Synths/sd88me - VST - Morpho-PE (settings backup MPC.settings.bak-sync-20261006-195200), MPC
+  restarted, plugin listed. Bench (docs/BENCH.md): 4 voices 17 % of a block at Eco (1x), about 31 % at 2x, p99 near that; idle 3.8 %; the
+  q-link sweep p99 is 131-135 % (unexplained spikes, FAIL). On-device timing of the engine alone: 4 voices 16.5 % (1x), 30 % (2x), 52 % (4x),
+  about 5.7 times the x86 cost. Eco is the default of this build (`-DPE_DEFAULT_OS=1` in vst.json). Not yet done: insert/play/Q-Link tests.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)

@@ -11,7 +11,7 @@
   "build": {
     "root": "..",
     "sources": ["src/engine.c", "src/curves.c", "src/syx.c", "src/waves.c", "src/presets.c"],
-    "cflags": ["-Isrc", "-O2"],
+    "cflags": ["-Isrc", "-O2", "-DPE_DEFAULT_OS=1"],
     "libs": ["-lm"]
   }
 }
