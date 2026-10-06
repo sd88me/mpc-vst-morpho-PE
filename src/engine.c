@@ -58,6 +58,7 @@ typedef struct { int st; float lvl, x, t; } env_t;
 typedef struct { float ph, out, hold; } lfo_t;
 typedef struct { int pos[4], running, gate, once, steps_done; float phase, gate_t, cur[4]; } seq_t;
 
+typedef struct { float z[64]; int p; } hb_t;   /* half-band decimator history */
 typedef struct {
     int note, vel, gated, sounding;
     unsigned age;
@@ -75,6 +76,8 @@ typedef struct {
     int shape[2], wave[2], hpv, distv, hack;
     float dlen[3], damt[3];
     /* audio state */
+    hb_t dec[2][2];
+    float bpre[2];                /* last mixer input from the base-rate parts, for the upsampling interpolation */
     float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_env, gain_gate, dfb;
     int fpos, dpos, hp_cur;
     float *dly;
@@ -87,7 +90,7 @@ typedef struct {
     uint8_t patch[NPATCH];
     char name[17];
     voice_t v[MAXV];
-    int nv;
+    int nv, os;                   /* voices; analog section oversampling 1, 2 or 4 */
     unsigned age;
     struct { int note, vel; } held[16];
     int nheld, pedal, deferred[128];
@@ -107,7 +110,9 @@ typedef struct {
     uint32_t rng;
 } pe_t;
 
-static float G_TAB[4096];        /* ladder G = g/(1+g), g = tan(pi f / fs), at 1/16 semitone from C0 - 48 semitones */
+static float G_TAB[3][4096];      /* for the analog section at 1x, 2x and 4x oversampling */
+        /* ladder G = g/(1+g), g = tan(pi f / fs), at 1/16 semitone from C0 - 48 semitones */
+static float HB_A[8], HB_B[16];   /* half-band decimators 4x -> 2x and 2x -> 1x: the coefficients of the odd taps */
 static float ENV_S[441], ENV_T[441];   /* envelope ramp time and decay time constant at quarter steps of 0..110 */
 static float LFO_HZ[151];
 
@@ -115,6 +120,25 @@ static float LFO_HZ[151];
 static float clampf(float x, float a, float b) { return x < a ? a : x > b ? b : x; }
 static int clampi(int x, int a, int b) { return x < a ? a : x > b ? b : x; }
 static float ftanh(float x) { x = clampf(x, -3, 3); return x * (27 + x * x) / (27 + 9 * x * x); }
+/* Half-band lowpass (cutoff fs/4, Kaiser window): the centre tap is 0.5, even taps are zero, tap 2j+1 is c[j] (both sides). */
+static double bessel0(double x) { double s = 1, t = 1; for (int k = 1; k < 40; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; } return s; }
+static void hb_design(float *c, int m, double beta) {
+    int K = 2 * m - 1;
+    for (int j = 0; j < m; j++) {
+        int k = 2 * j + 1;
+        double w = bessel0(beta * sqrt(1 - (double)k * k / ((K + 1.0) * (K + 1.0)))) / bessel0(beta);
+        c[j] = (float)(sin(3.14159265358979 * k / 2) / (3.14159265358979 * k) * w);
+    }
+}
+/* two input samples in (oldest first), one out at half the rate */
+static float hb_dec(hb_t *h, const float *c, int m, float x0, float x1) {
+    h->z[h->p & 63] = x0; h->z[(h->p + 1) & 63] = x1; h->p += 2;
+    int K = 2 * m - 1, mid = h->p - 1 - K;
+    float y = 0.5f * h->z[mid & 63];
+    for (int j = 0; j < m; j++) y += c[j] * (h->z[(mid - 2 * j - 1) & 63] + h->z[(mid + 2 * j + 1) & 63]);
+    return y;
+}
+
 static float rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(int32_t)*s * (1.0f / 2147483648.0f); }
 static int P(const pe_t *s, int i) { return s->patch[i]; }
 static float s99(const pe_t *s, int i) { return (float)s->patch[i] - 99; }
@@ -125,19 +149,21 @@ static void init_tables(void) {
     for (int i = 0; i < 4096; i++) {
         float f = pe_lpf_hz(i / 16.0f - 48);
         if (f > 0.45f * FS) f = 0.45f * FS;
-        float g = tanf(3.14159265f * f / FS);
-        G_TAB[i] = g / (1 + g);
+        for (int q = 0; q < 3; q++) { float gq = tanf(3.14159265f * f / (FS * (1 << q))); G_TAB[q][i] = gq / (1 + gq); }
     }
+    hb_design(HB_A, 6, 6.0);
+    hb_design(HB_B, 12, 8.6);
     for (int i = 0; i <= 440; i++) { ENV_S[i] = pe_env_seconds(i * 0.25f); ENV_T[i] = pe_env_tau_seconds(i * 0.25f); }
     for (int i = 0; i <= 150; i++) LFO_HZ[i] = pe_lfo_hz(i);
     done = 1;
 }
-static float lpf_G(float semis) {
+static float lpf_G(int q, float semis) {
+    const float *T = G_TAB[q];
     float x = (semis + 48) * 16;
-    if (x <= 0) return G_TAB[0];
-    if (x >= 4094) return G_TAB[4094];
+    if (x <= 0) return T[0];
+    if (x >= 4094) return T[4094];
     int i = (int)x;
-    return G_TAB[i] + (x - i) * (G_TAB[i + 1] - G_TAB[i]);
+    return T[i] + (x - i) * (T[i + 1] - T[i]);
 }
 
 static float env_s(float v) { return ENV_S[clampi((int)(v * 4 + 0.5f), 0, 440)]; }
@@ -741,20 +767,12 @@ static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in
 /* One voice, CTL samples, added into out[] (stereo float). */
 static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
     float am = P(s, P_LPF_AUDIOMOD) * 0.48f;         /* audio mod: semitones of cutoff per unit of oscillator */
+    const int OS = s->os;
     int four = P(s, P_POLES), grunge = P(s, P_GRUNGE), sync = P(s, P_SYNC);
     float vol = P(s, P_VOLUME) / 100.0f;
     const float *w3 = s->waves[v->wave[0]], *w4 = s->waves[v->wave[1]];
     for (int i = 0; i < n; i++) {
-        float t = (i + 1) / (float)n;
-        /* oscillators */
-        float o2 = analog_osc(v->shape[1], v->ph[1], v->inc[1], v->duty[1]);
-        v->ph[1] += v->inc[1];
-        int wrap2 = v->ph[1] >= 1;
-        if (wrap2) v->ph[1] -= 1;
-        float o1 = analog_osc(v->shape[0], v->ph[0], v->inc[0], v->duty[0]);
-        v->ph[0] += v->inc[0];
-        if (v->ph[0] >= 1) v->ph[0] -= 1;
-        if (sync && wrap2) v->ph[0] = v->ph[1] * v->inc[0] / v->inc[1];
+        /* digital oscillators (base rate) */
         float r3 = wave_read(w3, v->ph[2]), r4 = wave_read(w4, v->ph[3]);
         v->ph[2] += v->inc[2] * (1 + v->fm43 * 4 * v->o4);
         v->ph[3] += v->inc[3] * (1 + v->fm34 * 4 * v->o3);
@@ -763,28 +781,53 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
         v->o3 = r3; v->o4 = r4;
         float o3 = r3 * v->lvl[2] + v->rm43 * r3 * r4, o4 = r4 * v->lvl[3] + v->rm34 * r3 * r4;
         v->nz = rnd(&v->rng);
-        float nz = v->nz * v->noise;
-        /* mixer into the two lowpass channels, plus both feedback paths */
-        float in[2] = {o1 * v->lvl[0] + o3 + nz, o2 * v->lvl[1] + o4 + nz};
+        /* base-rate part of the mixer input: the digital oscillators and both feedback paths */
+        float bnow[2] = {o3 * 0.5f, o4 * 0.5f};
         float fbg = v->fblvl * 1.02f;
         for (int c = 0; c < 2; c++) {
             float fb = v->fbo[c] * fbg;
             if (grunge && v->fblvl > 0.5f) fb = (fb > 0.25f ? fb - 0.5f : fb < -0.25f ? fb + 0.5f : fb) * 2;   /* folds: nasty at high levels */
-            in[c] = in[c] * 0.5f + fb + v->dfb * v->fb2;
+            bnow[c] += fb + v->dfb * v->fb2;
         }
-        /* CEM3320-style lowpass: four OTA integrators in a cascade, each limiting its own input (dy/dt = w tanh(x - y)), with the
-         * resonance fed back from stage 4 (4-pole) or stage 2 (2-pole) to the input. Zero-delay-feedback trapezoid stages; each
-         * OTA's tanh is a gain tanh(u)/u taken from the previous sample (Zavalishin / mystran). */
-        float y[2];
-        float osc_am[2] = {o1, o2};
+        /* The analog section runs OS times oversampled: oscillators 1 and 2 (CEM3340-style), the mixer, the lowpass
+         * (CEM3320-style OTA cascade, each OTA's tanh limiting its own input; zero-delay feedback; resonance from stage 4, or
+         * stage 2 in 2-pole mode) and the VCA's soft saturation; then a half-band decimator brings it back. */
+        float ys[4][2];
+        for (int k = 0; k < OS; k++) {
+            float tt = (i * OS + k + 1) / (float)(n * OS), ti = (k + 1) / (float)OS;
+            float inc1 = v->inc[0] / OS, inc2 = v->inc[1] / OS;
+            float o2 = analog_osc(v->shape[1], v->ph[1], inc2, v->duty[1]);
+            v->ph[1] += inc2;
+            int wrap2 = v->ph[1] >= 1;
+            if (wrap2) v->ph[1] -= 1;
+            float o1 = analog_osc(v->shape[0], v->ph[0], inc1, v->duty[0]);
+            v->ph[0] += inc1;
+            if (v->ph[0] >= 1) v->ph[0] -= 1;
+            if (sync && wrap2) v->ph[0] = v->ph[1] * v->inc[0] / v->inc[1];
+            float nz = rnd(&v->rng) * v->noise * 0.5f;
+            float in[2] = {o1 * v->lvl[0] * 0.5f + nz + v->bpre[0] + (bnow[0] - v->bpre[0]) * ti,
+                           o2 * v->lvl[1] * 0.5f + nz + v->bpre[1] + (bnow[1] - v->bpre[1]) * ti};
+            float osc_am[2] = {o1, o2};
+            float g = v->vca_prev + (v->vca - v->vca_prev) * tt;
+            for (int c = 0; c < 2; c++) {
+                float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * tt + am * osc_am[c];
+                float y = ota_lpf(v->lad[c], v->ladd[c], lpf_G(s->os == 4 ? 2 : s->os == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
+                ys[k][c] = ftanh(y * g * 0.8f) * 1.25f;     /* the VCA's OTA saturates softly at large levels */
+            }
+        }
+        v->bpre[0] = bnow[0]; v->bpre[1] = bnow[1];
+        float ab[2];
         for (int c = 0; c < 2; c++) {
-            float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * t + am * osc_am[c];
-            y[c] = ota_lpf(v->lad[c], v->ladd[c], lpf_G(semis), v->res[c], four, in[c]);
+            if (OS == 1) ab[c] = ys[0][c];
+            else if (OS == 2) ab[c] = hb_dec(&v->dec[c][1], HB_B, 12, ys[0][c], ys[1][c]);
+            else {
+                float u0 = hb_dec(&v->dec[c][0], HB_A, 6, ys[0][c], ys[1][c]);
+                float u1 = hb_dec(&v->dec[c][0], HB_A, 6, ys[2][c], ys[3][c]);
+                ab[c] = hb_dec(&v->dec[c][1], HB_B, 12, u0, u1);
+            }
         }
-        /* VCA, then output pan (it feeds the feedback, so one channel can feed back into the other) */
-        float g = v->vca_prev + (v->vca - v->vca_prev) * t;
-        /* the VCA's OTA saturates softly at large levels */
-        float a = ftanh(y[0] * g * 0.8f) * 1.25f, b = ftanh(y[1] * g * 0.8f) * 1.25f;
+        float a = ab[0], b = ab[1];
+        /* output pan (it feeds the feedback, so one channel can feed back into the other) */
         float L = a * v->panl[0] + b * v->panr[0], R = a * v->panl[1] + b * v->panr[1];
         /* tuned feedback lines */
         v->fbuf[0][v->fpos] = L; v->fbuf[1][v->fpos] = R;
@@ -850,6 +893,7 @@ static void *pe_create(const char *dir) {
     s->cc_vol = 1;
     s->last_note = 60;
     s->clock_src = 1;
+    s->os = 2;
     s->rng = 0x13579BDFu;
     for (int i = 0; i < MAXV; i++) {
         s->v[i].dly = calloc(DLEN, sizeof(float));
@@ -1054,6 +1098,7 @@ static void pe_set_param(void *h, const char *k, const char *val) {
     else if (!strcmp(k, "seq_run")) s->seq_run = clampi(x, 0, 2);
     else if (!strcmp(k, "clock_src")) s->clock_src = clampi(x, 0, 1);
     else if (!strcmp(k, "seq_reset")) { if (x) for (int v = 0; v < s->nv; v++) seq_reset(&s->v[v].seq); }
+    else if (!strcmp(k, "quality")) s->os = clampi(x, 0, 2) == 0 ? 1 : x == 1 ? 2 : 4;
     else if (!strcmp(k, "voices")) { int n = clampi(x, 1, MAXV); if (n != s->nv) { all_off(s); s->nv = n; } }
     else if (!strcmp(k, "lfo_bpm")) s->host_bpm = (float)atof(val);
     else if (!strcmp(k, "transport")) s->transport = x;
@@ -1088,6 +1133,7 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
     if (!strcmp(k, "clock_src")) return snprintf(b, (size_t)n, "%d", s->clock_src) + 1;
     if (!strcmp(k, "seq_reset")) return snprintf(b, (size_t)n, "0") + 1;
     if (!strcmp(k, "voices")) return snprintf(b, (size_t)n, "%d", s->nv) + 1;
+    if (!strcmp(k, "quality")) return snprintf(b, (size_t)n, "%d", s->os == 4 ? 2 : s->os == 2 ? 1 : 0) + 1;
     if (!strcmp(k, "status"))
         return (s->user_waves ? snprintf(b, (size_t)n, "%d banks, %d waves loaded", s->nbanks, s->user_waves)
                               : snprintf(b, (size_t)n, "%d banks, open waves", s->nbanks)) + 1;

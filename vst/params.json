@@ -1875,6 +1875,16 @@
    "type": "trigger",
    "step_of": "program",
    "step_delta": 1
+  },
+  {
+   "key": "quality",
+   "name": "Quality",
+   "options": [
+    "Eco 1x",
+    "High 2x",
+    "Ultra 4x"
+   ],
+   "default": 1
   }
  ]
 }

@@ -124,7 +124,7 @@ def main():
                        ("PITCH WHEEL", "bend_range"), ("ENV SHAPE", "^env_shape"), ("INPUT MODE", "^ext_mode"), ("INPUT HACK", "in_hack"),
                        ("VOICES", "voices")]])
     seq, _ = section(10, Y(2), "SEQUENCER", [[("RUN", "^seq_run"), ("CLOCK", "^clock_src"), ("BPM", "tempo"), ("CLOCK DIVIDE", "^clock_div"),
-                      ("RESET", "seq_reset")]])
+                      ("RESET", "seq_reset"), ("QUALITY", "^quality")]])
     emit('frame x=740 y=%d w=530 h=146 title="STATUS"' % Y(2))
     emit('readout style=dotmatrix cx=1005 cy=%d w=490 h=48 label="" key=status' % (Y(2) + 98))
     dests, _ = section(10, Y(3), "SEQUENCE DESTINATIONS", [[("SEQ 1", "seq1_dest"), ("SEQ 2", "seq2_dest"), ("SEQ 3", "seq3_dest"),

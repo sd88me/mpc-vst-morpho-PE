@@ -71,6 +71,14 @@ int main(void) {
     render(h, 200, &pk, buf);
     double f = zc_freq(buf, 128 * 200);
     CHECK(fabs(f - 440) < 2, "A4 plays at %.1f Hz", f);
+    for (int q = 0; q < 3; q++) {   /* every quality level keeps the pitch and stays finite */
+        setp(h, "quality", q);
+        render(h, 20, &pk, NULL);
+        render(h, 200, &pk, buf);
+        f = zc_freq(buf, 128 * 200);
+        CHECK(fabs(f - 440) < 2 && pk > 1000 && pk < 32767, "quality %d: A4 at %.1f Hz, peak %.0f", q, f, pk);
+    }
+    setp(h, "quality", 1);
     midi3(h, 0x80, 69, 0);
     double early = render(h, 100, &pk, NULL);
     render(h, 1500, &pk, NULL);   /* release 30 = a time constant of 4 x 83 ms */

@@ -93,7 +93,8 @@ EXTRA = [
     {"key": "status", "name": "Status", "min": 0, "max": 1, "default": 0, "display": "string"},
 ] + [{"key": "%s_%s" % (k, d), "name": "%s %s" % (k.title(), "<" if d == "prev" else ">"), "min": 0, "max": 1, "default": 0,
       "momentary": True, "type": "trigger", "step_of": k, "step_delta": -1 if d == "prev" else 1}
-     for k in ("bank", "program") for d in ("prev", "next")]
+     for k in ("bank", "program") for d in ("prev", "next")] + [
+    {"key": "quality", "name": "Quality", "options": ["Eco 1x", "High 2x", "Ultra 4x"], "default": 1}]
 
 def params_json():
     out = []
