@@ -38,7 +38,8 @@
   distortion gain and hard clip, the noise gate, grunge (the mixer sum wraps instead of saturating), the output hack's bit masks, glide, and
   the Env 3 delay. The voice-CPU times assume a 40 MHz clock (not in the file).
 - Still guessed: filter-frequency modulation depth (an estimate, 56 semitones), split, the sequencer destinations, audio-mod and filter
-  key-tracking scales, the cutoff in Hz (calibrated analog hardware), unison detune (main CPU key assignment).
+  key-tracking scales, the cutoff in Hz (calibrated analog hardware). Unison detune is the main CPU's table (2026-10-07, docs/FIRMWARE.md
+  section 12): -1/+1/-3/+3 and -3/+3/-8/+8 cents.
 - External audio input, its peak and envelope follower and the Ext In trigger modes have nothing to work on in an instrument
   plugin: the Ext In trigger modes act like their keyboard counterparts and the input sources read zero.
 - Sequencer MIDI-out destinations (notes, velocity, controllers) are ignored: MPC does not take MIDI from a VST.
@@ -55,7 +56,8 @@ for Chromium build 1194).
 
 ## Next steps
 1. Device: build, bench, play, save/reload a project (mpc-vst-plugins docs/PORTING.md section 4).
-2. Main CPU (dsPIC) code: unison detune, key tracking, the sequencer clock; needs a dsPIC decoder.
+2. LP key tracking, audio mod and split scales: not in the main CPU (section 12); look in the voice CPU's 0-100 tables (0xB1A, 0xBE2,
+   0xD4E) and the DSP's filter CV path.
 3. Run more of the DSP (digital oscillators 3/4, the delay and feedback paths) in `tools/fw/adsp219x_sim.py` as a reference for the digital half.
 4. Recordings of a real instrument for the analog half.
 5. The catalog route (docs/CATALOG.md of mpc-vst-plugins).

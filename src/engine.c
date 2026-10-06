@@ -642,8 +642,10 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
 
     /* pitch: osc value + key (with glide) + transpose + bend + modulation + slop + unison spread */
     int mode = voices_mode(s), legato = s->nheld > 1;
-    float spread = 0;
-    if (mode >= 2 && s->nv > 1) spread = (vi - (s->nv - 1) * 0.5f) / (s->nv - 1) * (mode == 2 ? 0.12f : 0.30f);
+    /* unison detune: the main CPU adds a fixed offset per voice to the master fine tune it sends each voice (main 2.2, table at
+     * PSV 0x8844, docs/FIRMWARE.md section 12): Unison 1 -1/+1/-3/+3 cents, Unison 2 -3/+3/-8/+8 cents; voices 5-8 repeat it */
+    static const signed char UNI[2][4] = {{-1, 1, -3, 3}, {-3, 3, -8, 8}};
+    float spread = mode >= 2 ? UNI[mode - 2][vi & 3] / 100.0f : 0;
     static const int of[4][3] = {{P_OSC1_FREQ, P_OSC1_FINE, P_OSC1_GLIDE}, {P_OSC2_FREQ, P_OSC2_FINE, P_OSC2_GLIDE},
         {P_OSC3_FREQ, P_OSC3_FINE, P_OSC3_GLIDE}, {P_OSC4_FREQ, P_OSC4_FINE, P_OSC4_GLIDE}};
     float xpose = (float)P(s, P_KEY_XPOSE) - 37, slop = P(s, P_SLOP) * 0.03f;

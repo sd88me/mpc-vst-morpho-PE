@@ -85,6 +85,26 @@ int main(void) {
     double tail = render(h, 50, &pk, NULL);
     CHECK(early > 3 * tail && tail < 1e-4, "release dies away (rms %.6f, then %.6f)", early, tail);
 
+    /* unison detune (main CPU table, docs/FIRMWARE.md section 12): voice 1 sits 3 cents flat in Unison 2, 1 cent flat in Unison 1 */
+    {
+        double fu[3];
+        static const int km[3] = {0, 12, 18};          /* Poly, Unison 1, Unison 2 (Low Note) */
+        setp(h, "voices", 1);
+        for (int m = 0; m < 3; m++) {
+            setp(h, "key_mode", km[m]);
+            midi3(h, 0x90, 69, 100);
+            render(h, 40, &pk, NULL);
+            render(h, 200, &pk, buf);
+            fu[m] = zc_freq(buf, 128 * 200);
+            midi3(h, 0x80, 69, 0);
+            render(h, 1600, &pk, NULL);
+        }
+        double c1 = 1200 * log2(fu[1] / fu[0]), c2 = 1200 * log2(fu[2] / fu[0]);
+        CHECK(fabs(c1 + 1) < 0.5 && fabs(c2 + 3) < 0.5, "unison detune of voice 1: %.2f / %.2f cents (-1 / -3)", c1, c2);
+        setp(h, "key_mode", 4);
+        setp(h, "voices", 4);
+    }
+
     /* digital oscillator alone, wave 1 (sine) */
     setp(h, "osc1_level", 0); setp(h, "osc3_level", 100); setp(h, "osc3_shape", 0);
     midi3(h, 0x90, 57, 100);
