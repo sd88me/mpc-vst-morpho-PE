@@ -16,7 +16,14 @@
   program, sequencer, extremes, SysEx and state round trips, a folder of banks and a waveshape).
 - Analog section (2026-10-06): CEM3340-style VCO, CEM3320-style OTA-cascade lowpass, soft VCA (src/engine.c `analog_osc`, `ota_lpf`). Checked offline:
   pole frequency = the set cutoff, 4-pole self-oscillates from resonance 4 (the engine's maximum is 4.5), 2-pole never does. Not compared
-  with a real instrument; CPU not re-measured.
+  with a real instrument.
+- Oversampling (2026-10-06): the analog section runs at 1x, 2x or 4x (host parameter Quality, default 2x), with Kaiser half-band
+  decimators (about 70 dB down above the band). Saw/pulse aliasing at C6-F#7 falls from about -33 dB (1x) to about -49 dB (2x); 4x gains
+  little more, and costs about 3.6x the engine's CPU against 1.8x for 2x (x86; the device is unmeasured, so check docs/BENCH.md before
+  defaulting to 2x).
+- Compared offline with a scalar port of the OB-Xd 4-pole as sst-filters publishes it (study only, nothing copied): the linear
+  cascade and feedback solve are the same; OB-Xd is nearly linear until its self-oscillation (about 3-4.6 amplitude), here the OTAs
+  limit (0.14 % THD at amplitude 0.8, 2.5 % at 3.2; self-oscillation about 0.5). Which is nearer the Evolver needs a recording.
 - CPU: 2-6 % (before this change) of one x86 core for four held voices (rough; the device bench is still to do, docs/BENCH.md of mpc-vst-plugins).
 
 ## Known limits

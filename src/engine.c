@@ -752,11 +752,12 @@ static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in
         b = Gs[j] * b + (1 - Gs[j]) * st[j];
         a *= Gs[j];
     }
-    float prev = ftanh((in * (1 + (four ? 0.35f : 0.1f) * k) - k * b) / (1 + k * a));
+    /* the input limiter is wide (a clean signal up to about 1, soft above) and the stages limit gently: self-oscillation settles near 0.5 */
+    float prev = 3.0f * ftanh((in * (1 + (four ? 0.35f : 0.1f) * k) - k * b) / (1 + k * a) * (1.0f / 3));
     for (int j = 0; j < ns; j++) {
         float vv = (prev - st[j]) * Gs[j], yy = vv + st[j];
         st[j] = yy + vv;
-        float u = (prev - yy) * 1.6f;
+        float u = (prev - yy) * 0.5f;
         nl[j] = fabsf(u) < 0.01f ? 0 : 1 - ftanh(u) / u;
         prev = yy;
     }
