@@ -14,7 +14,10 @@
   user waveshape dumps, Prophet VS wave dumps and single-cycle WAV banks, state chunk.
 - Tests: `tools/test_port.sh` passes every check but one (below); `test/test_engine.c` passes (pitch to 0.1 Hz, every built-in
   program, sequencer, extremes, SysEx and state round trips, a folder of banks and a waveshape).
-- CPU: 2-6 % of one x86 core for four held voices (rough; the device bench is still to do, docs/BENCH.md of mpc-vst-plugins).
+- Analog section (2026-10-06): CEM3340-style VCO, CEM3320-style OTA-cascade lowpass, soft VCA (src/engine.c `analog_osc`, `ota_lpf`). Checked offline:
+  pole frequency = the set cutoff, 4-pole self-oscillates from resonance 4 (the engine's maximum is 4.5), 2-pole never does. Not compared
+  with a real instrument; CPU not re-measured.
+- CPU: 2-6 % (before this change) of one x86 core for four held voices (rough; the device bench is still to do, docs/BENCH.md of mpc-vst-plugins).
 
 ## Known limits
 - `test_port.sh`: "six data wheel clicks step six" fails on Osc1 Freq (0-120): a wheel click is 1.2 steps and the wrapper

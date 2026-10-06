@@ -27,8 +27,10 @@ model and on what its firmware and manual say:
   delay tap lengths, the envelope time curve and the 4-pole Butterworth highpass cutoffs, and they confirm all 128 parameter
   ranges. The engine's curves are formulas fitted to them; no firmware data is in this repository or the plugin.
 - **The analog half is modelled, not measured.** The oscillators, lowpass and VCA are circuits on the instrument, so their sound
-  here is a reasonable model (band-limited saw, triangle and pulse with the original's pulse-width behaviour, a zero-delay
-  ladder with 2- and 4-pole modes), not a calibrated copy.
+  here is a circuit-style model, not a calibrated copy: a ramp-core VCO (polyBLEP saw and pulse, polyBLAMP triangle, slight ramp
+  bend, slow drift), a lowpass of four OTA integrators that each saturate their own input (zero-delay feedback, resonance from
+  stage 4, or stage 2 in 2-pole mode) and a soft-saturating VCA. Written from the published papers (Valimaki and Huovilainen,
+  Zavalishin, mystran's nonlinear zero-delay notes); no GPL code is used.
 
 ## Your own sounds and waves
 

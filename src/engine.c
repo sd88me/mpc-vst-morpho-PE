@@ -75,7 +75,7 @@ typedef struct {
     int shape[2], wave[2], hpv, distv, hack;
     float dlen[3], damt[3];
     /* audio state */
-    float lad[2][4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_env, gain_gate, dfb;
+    float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_env, gain_gate, dfb;
     int fpos, dpos, hp_cur;
     float *dly;
     uint32_t rng;
@@ -607,8 +607,9 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         } else v->key[o] = v->tgt;
         if ((v->rng & 0xff) < 3) v->slopv[o] = rnd(&v->rng) * slop;
         v->slop[o] += (v->slopv[o] - v->slop[o]) * 0.002f;
+        v->drift[o] += (rnd(&v->rng) * 0.02f - v->drift[o]) * 0.002f;   /* the VCO's slow thermal wander, a fraction of a cent */
         float key = P(s, of[o][2]) == 200 ? 0 : v->key[o] + xpose;
-        float semis = P(s, of[o][0]) + (P(s, of[o][1]) - 50) / 100.0f + key + s->bend * P(s, P_BEND_RANGE) + d[1 + o] + d[5] + v->slop[o] + spread;
+        float semis = P(s, of[o][0]) + (P(s, of[o][1]) - 50) / 100.0f + key + s->bend * P(s, P_BEND_RANGE) + d[1 + o] + d[5] + v->slop[o] + v->drift[o] + spread;
         v->inc[o] = fminf(pe_note_hz(semis) / FS, 0.49f);
     }
     for (int o = 0; o < 4; o++) v->lvl[o] = clampf(P(s, P_OSC1_LEVEL + 4 * o) + d[6 + o] + d[10], 0, 100) / 100.0f;
@@ -636,7 +637,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
         v->cut_prev[c] = v->cut[c];
         v->cut[c] = clampf(cut + (c ? -split : split) + d[64 + c], -40, 200);
         float r = clampf(P(s, P_LPF_RES) + d[22] + d[66 + c], 0, 100) / 100.0f;
-        v->res[c] = P(s, P_POLES) ? r * 4.15f : r * 12.0f;
+        v->res[c] = P(s, P_POLES) ? r * 4.5f : r * 12.0f;
     }
 
     /* VCA: base level plus envelope (full base level makes the envelope irrelevant) */
@@ -678,9 +679,21 @@ static float polyblep(float t, float dt) {
     if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; }
     return 0;
 }
+/* CEM3340-style ramp-core VCO: saw from the integrator, triangle folded from it, pulse from a comparator on it. The saw and pulse
+ * edges are band-limited with a 2-point polyBLEP, the triangle corners with a polyBLAMP; the integrator's ramp bends very slightly
+ * (a leaky capacitor) which the saw carries as a little 2nd harmonic. */
+static float polyblamp(float t, float dt) {
+    if (t < dt) { t = t / dt - 1; return -(1.0f / 3) * t * t * t * dt; }
+    if (t > 1 - dt) { t = (t - 1) / dt + 1; return (1.0f / 3) * t * t * t * dt; }
+    return 0;
+}
 static float analog_osc(int shape, float ph, float inc, float duty) {
     float saw = 2 * ph - 1 - polyblep(ph, inc);
+    float t2 = ph + 0.5f;
+    if (t2 >= 1) t2 -= 1;
     float tri = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph;
+    tri += 4 * (polyblamp(ph, inc) - polyblamp(t2, inc));   /* the kernels are for a step of height 2: a slope change of 8 needs 4 */
+    saw += 0.02f * (1 - saw * saw) - 0.0133f;
     switch (shape) {
     case 0: return saw;
     case 1: return tri;
@@ -689,8 +702,8 @@ static float analog_osc(int shape, float ph, float inc, float duty) {
         if (duty <= 0.0f || duty >= 1.0f) return 0;    /* the pulse turns off at both extremes */
         float x = ph < duty ? 1.0f : -1.0f;
         x += polyblep(ph, inc);
-        float t2 = ph - duty + (ph < duty ? 1 : 0);
-        x -= polyblep(t2, inc);
+        float t3 = ph - duty + (ph < duty ? 1 : 0);
+        x -= polyblep(t3, inc);
         return x - (2 * duty - 1);
     }
     }
@@ -701,6 +714,28 @@ static float wave_read(const float *w, float ph) {
     float f = x - i;
     i &= PE_WLEN - 1;
     return w[i] + f * (w[(i + 1) & (PE_WLEN - 1)] - w[i]);
+}
+
+static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in) {
+    float g0 = G0 / (1 - G0);
+    int ns = four ? 4 : 2;
+    float Gs[4], a = 1, b = 0;
+    for (int j = 0; j < ns; j++) {
+        float gj = g0 * (1 - nl[j]);
+        Gs[j] = gj / (1 + gj);
+        b = Gs[j] * b + (1 - Gs[j]) * st[j];
+        a *= Gs[j];
+    }
+    float prev = ftanh((in * (1 + (four ? 0.35f : 0.1f) * k) - k * b) / (1 + k * a));
+    for (int j = 0; j < ns; j++) {
+        float vv = (prev - st[j]) * Gs[j], yy = vv + st[j];
+        st[j] = yy + vv;
+        float u = (prev - yy) * 1.6f;
+        nl[j] = fabsf(u) < 0.01f ? 0 : 1 - ftanh(u) / u;
+        prev = yy;
+    }
+    if (!four) st[2] = st[3] = 0;
+    return prev;
 }
 
 /* One voice, CTL samples, added into out[] (stereo float). */
@@ -737,33 +772,19 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             if (grunge && v->fblvl > 0.5f) fb = (fb > 0.25f ? fb - 0.5f : fb < -0.25f ? fb + 0.5f : fb) * 2;   /* folds: nasty at high levels */
             in[c] = in[c] * 0.5f + fb + v->dfb * v->fb2;
         }
-        /* lowpass ladders (zero-delay feedback; tanh on the input) */
+        /* CEM3320-style lowpass: four OTA integrators in a cascade, each limiting its own input (dy/dt = w tanh(x - y)), with the
+         * resonance fed back from stage 4 (4-pole) or stage 2 (2-pole) to the input. Zero-delay-feedback trapezoid stages; each
+         * OTA's tanh is a gain tanh(u)/u taken from the previous sample (Zavalishin / mystran). */
         float y[2];
         float osc_am[2] = {o1, o2};
         for (int c = 0; c < 2; c++) {
             float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * t + am * osc_am[c];
-            float G = lpf_G(semis), *st = v->lad[c], k = v->res[c];
-            float g1 = 1 - G;
-            float out4;
-            if (four) {
-                float S = G * G * G * g1 * st[0] + G * G * g1 * st[1] + G * g1 * st[2] + g1 * st[3];
-                float u = ftanh((in[c] * (1 + 0.35f * k) - k * S) / (1 + k * G * G * G * G));
-                float x = u;
-                for (int j = 0; j < 4; j++) { float vv = (x - st[j]) * G; float yy = vv + st[j]; st[j] = yy + vv; x = yy; }
-                out4 = x;
-            } else {
-                float S = G * g1 * st[0] + g1 * st[1];
-                float u = ftanh((in[c] * (1 + 0.1f * k) - k * S) / (1 + k * G * G));
-                float x = u;
-                for (int j = 0; j < 2; j++) { float vv = (x - st[j]) * G; float yy = vv + st[j]; st[j] = yy + vv; x = yy; }
-                st[2] = st[3] = 0;
-                out4 = x;
-            }
-            y[c] = out4;
+            y[c] = ota_lpf(v->lad[c], v->ladd[c], lpf_G(semis), v->res[c], four, in[c]);
         }
         /* VCA, then output pan (it feeds the feedback, so one channel can feed back into the other) */
         float g = v->vca_prev + (v->vca - v->vca_prev) * t;
-        float a = y[0] * g, b = y[1] * g;
+        /* the VCA's OTA saturates softly at large levels */
+        float a = ftanh(y[0] * g * 0.8f) * 1.25f, b = ftanh(y[1] * g * 0.8f) * 1.25f;
         float L = a * v->panl[0] + b * v->panr[0], R = a * v->panl[1] + b * v->panr[1];
         /* tuned feedback lines */
         v->fbuf[0][v->fpos] = L; v->fbuf[1][v->fpos] = R;
