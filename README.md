@@ -1,6 +1,7 @@
 # Morpho-PE
 
-A four-voice synthesizer for Akai MPC OS standalone devices (Force, MPC Live / One / X / Key), built as a native VST2 instrument with
+A four-voice synthesizer for Akai MPC OS 3.x standalone devices (Force, MPC Live / One / X / Key; not MPC OS 2.x, whose skin format
+it does not use), built as a native VST2 instrument with
 its own screen skin and Q-Link pages. It plays the way the DSI Poly Evolver's voice does: two analog-style oscillators and two
 digital waveshape oscillators per voice, a stereo 2/4-pole lowpass and VCA, the DSP side's highpass, tuned feedback, distortion,
 three-tap delay and output hack, three envelopes, four LFOs, the modulation slots and fixed controller routes, and the 4 x 16 step
