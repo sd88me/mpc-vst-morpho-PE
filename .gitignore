@@ -2,3 +2,4 @@
 *.bin
 SYSEX/
 vst/build/
+local/
