@@ -61,6 +61,8 @@
   half-band decimators keep a mirrored history (no index wrap), and the build is -O3. The render hash is identical on x86 and ARM; on the Force
   the engine went from 15.7 to 13.6 % of a block (4 voices, Eco) and from 27.6 to 21.9 % (High). VFPv4 or Cortex-A17 tuning gained nothing,
   so the build stays generic armv7.
+  `tools/bench.sh` on this build (md5 0b87e681a92aff4c9e30f0eeef2f1970): idle 4.2 %, held notes 13-15 % mean, p99 17 %, max 20 %; q-link sweep
+  mean 32 %, p99 56 %, max 65 % (was 68 / 75); release tail mean 51 %, p99 55 % (was 64 / 67). Still FAIL by the bench's thresholds.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)
