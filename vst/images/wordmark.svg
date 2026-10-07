@@ -1,18 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="340" height="100" viewBox="0 0 340 100">
-  <!-- Morpho-PE wordmark, our own: a stylised blue butterfly and the name; not the instrument's logo -->
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="100" viewBox="0 0 360 100">
+  <!-- Morpho-PE wordmark, our own lettering (rounded lowercase on a bouncing baseline, outlined, with a small PE above) and an
+       abstract butterfly as the first o; drawn in the spirit of the instrument's era, not its logo -->
   <defs>
-    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#9fd8ff"/><stop offset="0.55" stop-color="#3a7bff"/><stop offset="1" stop-color="#1b2fb8"/>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.6" stop-color="#e8eeff"/><stop offset="1" stop-color="#a9bfff"/>
     </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#bfe6ff"/><stop offset="0.5" stop-color="#3f86ff"/><stop offset="1" stop-color="#1630c8"/>
+    </linearGradient>
+    <g id="letters" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- m -->
+      <path d="M24,72 V48 A12,12 0 0 1 48,48 V72 M48,48 A12,12 0 0 1 72,48 V72" transform="translate(0,-2) rotate(-3 48 56)"/>
+      <!-- r -->
+      <path d="M134,73 V40 M134,52 C134,42 142,37 154,38" transform="translate(0,1)"/>
+      <!-- p -->
+      <path d="M170,40 V90 M170,56 A16,16 0 1 0 202,56 A16,16 0 1 0 170,56" transform="translate(0,-3) rotate(4 186 56)"/>
+      <!-- h -->
+      <path d="M220,72 V16 M220,52 A13,13 0 0 1 246,52 V72" transform="translate(0,1)"/>
+      <!-- o -->
+      <circle cx="276" cy="56" r="16" transform="translate(0,-2)"/>
+    </g>
   </defs>
-  <g transform="translate(46,52)">
-    <path d="M0,-2 C-10,-34 -40,-40 -40,-18 C-40,-4 -22,4 0,0 Z" fill="url(#wing)" stroke="#e6f0ff" stroke-width="1.5"/>
-    <path d="M0,-2 C10,-34 40,-40 40,-18 C40,-4 22,4 0,0 Z" fill="url(#wing)" stroke="#e6f0ff" stroke-width="1.5"/>
-    <path d="M0,2 C-8,8 -30,10 -28,26 C-26,36 -8,26 0,6 Z" fill="url(#wing)" stroke="#e6f0ff" stroke-width="1.5"/>
-    <path d="M0,2 C8,8 30,10 28,26 C26,36 8,26 0,6 Z" fill="url(#wing)" stroke="#e6f0ff" stroke-width="1.5"/>
-    <rect x="-1.6" y="-14" width="3.2" height="34" rx="1.6" fill="#0d1450"/>
-    <path d="M-1,-13 C-4,-22 -8,-26 -12,-28 M1,-13 C4,-22 8,-26 12,-28" stroke="#f5b400" stroke-width="1.6" fill="none"/>
+  <!-- PE, small and bold above the m, as the instrument puts POLY over its name -->
+  <text x="18" y="27" font-family="Titillium Web, sans-serif" font-weight="900" font-style="italic" font-size="21" fill="#f5b400"
+        stroke="#0b1240" stroke-width="5" paint-order="stroke" letter-spacing="1">PE</text>
+  <use href="#letters" stroke="#0b1240" stroke-width="21"/>
+  <use href="#letters" stroke="url(#ink)" stroke-width="12"/>
+  <!-- the first o: an abstract butterfly, four wing loops round an empty body -->
+  <g transform="translate(102,54) rotate(-6)">
+    <g stroke="#0b1240" stroke-width="9" fill="none">
+      <ellipse cx="-9" cy="-6" rx="10.5" ry="13.5" transform="rotate(-28 -9 -6)"/>
+      <ellipse cx="9" cy="-6" rx="10.5" ry="13.5" transform="rotate(28 9 -6)"/>
+      <ellipse cx="-7" cy="11" rx="6" ry="8" transform="rotate(30 -7 11)"/>
+      <ellipse cx="7" cy="11" rx="6" ry="8" transform="rotate(-30 7 11)"/>
+    </g>
+    <g stroke="#ffffff" stroke-width="2.4" fill="url(#wing)">
+      <ellipse cx="-9" cy="-6" rx="10.5" ry="13.5" transform="rotate(-28 -9 -6)"/>
+      <ellipse cx="9" cy="-6" rx="10.5" ry="13.5" transform="rotate(28 9 -6)"/>
+      <ellipse cx="-7" cy="11" rx="6" ry="8" transform="rotate(30 -7 11)"/>
+      <ellipse cx="7" cy="11" rx="6" ry="8" transform="rotate(-30 7 11)"/>
+    </g>
   </g>
-  <text x="98" y="58" font-family="Titillium Web, sans-serif" font-weight="700" font-size="42" fill="#ffffff" letter-spacing="1">morpho</text>
-  <text x="100" y="82" font-family="Titillium Web, sans-serif" font-weight="600" font-size="13" fill="#f5b400" letter-spacing="3.2">PE  ·  FOUR-VOICE SYNTH</text>
 </svg>

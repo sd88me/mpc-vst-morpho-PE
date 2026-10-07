@@ -289,7 +289,7 @@ int main(void) {
             setp(h3, "patch_page_next", 1);
             char pg[32]; E->get_param(h3, "patch_page_text", pg, sizeof pg);
             char s1[32]; E->get_param(h3, "patch_slot_1", s1, sizeof s1);
-            CHECK(!strcmp(b, "3 My Banks B2") && !strcmp(pg, "PAGE 2/5") && !strcmp(s1, "029 Prog 29"), "bank and page steppers (%s, %s, %s)", b, pg, s1);
+            CHECK(!strcmp(b, "3 My Banks B2") && !strcmp(pg, "PAGE 2/4") && !strcmp(s1, "043 Prog 43"), "bank and page steppers (%s, %s, %s)", b, pg, s1);
             setp(h3, "browse_bank_index", 0);
             E->get_param(h3, "patch_slot_1", b, sizeof b);
             CHECK(!strncmp(b, "001 ", 4) && strlen(b) > 4, "the factory bank lists its names (%s)", b);

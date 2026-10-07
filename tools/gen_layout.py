@@ -21,6 +21,14 @@ def qlinks(name, keys):
     assert len(keys) <= 16, (name, len(keys))
     emit('qlinks "%s" = %s' % (name, ",".join(keys)))
 
+# destination and source pickers: the options in groups (columns of up to 8), the cell a little narrower than the field
+DEST_GROUPS = [("Osc", 16), ("FM Filter VCA", 10), ("Feedback Delay", 12), ("LFO", 10), ("Env", 16), ("Other", 5)]
+SDEST_GROUPS = DEST_GROUPS + [("Seq MIDI", 7)]
+SRC_GROUPS = [("Seq", 5), ("LFO", 4), ("Env", 3), ("ExtIn", 2), ("Controller", 8), ("Osc", 3)]
+def POPUP_EXTRA(key):
+    g = SRC_GROUPS if key.startswith("mod") and key.endswith("_src") else SDEST_GROUPS if key.startswith("seq") and key.endswith("_dest") else DEST_GROUPS if key.endswith("_dest") else None
+    return ' groups="%s" cw=104' % ",".join("%s:%d" % t for t in g) if g else ""
+
 def section(x, y, title, rows):
     """A frame whose rows are lists of (label, key); '~' marks a toggle (LED), '^' a popup, '' a knob, None an empty cell.
     Returns (keys in order, frame box)."""
@@ -38,7 +46,7 @@ def section(x, y, title, rows):
             if key[0] == "~":
                 emit('toggle cx=%d cy=%d label="%s" key=%s look=led' % (cx, ry + 64, label, key[1:]))
             elif key[0] == "^":
-                emit('popup cx=%d cy=%d w=126 h=48 label="%s" key=%s' % (cx, ry + 96, label, key[1:]))
+                emit('popup cx=%d cy=%d w=126 h=48 label="%s" key=%s%s' % (cx, ry + 96, label, key[1:], POPUP_EXTRA(key[1:])))
             else:
                 emit('knob cx=%d cy=%d r=24 label="%s" key=%s' % (cx, ry + 56, label, key))
             keys.append(key.lstrip("~^"))
@@ -125,11 +133,11 @@ def main():
                        ("VOICES", "voices")]])
     seq, _ = section(10, Y(2), "SEQUENCER", [[("RUN", "^seq_run"), ("CLOCK", "^clock_src"), ("BPM", "tempo"), ("CLOCK DIVIDE", "^clock_div"),
                       ("RESET", "seq_reset"), ("QUALITY", "^quality")]])
-    emit('frame x=740 y=%d w=530 h=146 title="STATUS"' % Y(2))
-    emit('readout style=dotmatrix cx=1005 cy=%d w=490 h=48 label="" key=status' % (Y(2) + 98))
-    dests, _ = section(10, Y(3), "SEQUENCE DESTINATIONS", [[("SEQ 1", "seq1_dest"), ("SEQ 2", "seq2_dest"), ("SEQ 3", "seq3_dest"),
-                        ("SEQ 4", "seq4_dest"), ("OSC 3 SHAPE", "^shapeseq3"), ("OSC 4 SHAPE", "^shapeseq4")]])
-    wordmark(880, Y(3) + 20, 360, 100)
+    emit('frame x=860 y=%d w=410 h=146 title="STATUS"' % Y(1))
+    emit('readout style=dotmatrix cx=1065 cy=%d w=370 h=48 label="" key=status' % (Y(1) + 98))
+    dests, _ = section(10, Y(3), "SEQUENCE DESTINATIONS", [[("SEQ 1", "^seq1_dest"), ("SEQ 2", "^seq2_dest"), ("SEQ 3", "^seq3_dest"),
+                        ("SEQ 4", "^seq4_dest"), ("OSC 3 SHAPE", "^shapeseq3"), ("OSC 4 SHAPE", "^shapeseq4")]])
+    wordmark(880, Y(2) + 40, 380, 106)
     qlinks("Program", ["program", "bank", "volume", "pan", "key_mode", "key_xpose", "bend_range", "voices",
                        "tempo", "clock_div", "trigger", "seq_run", "seq1_dest", "seq2_dest", "seq3_dest", "seq4_dest"])
 
@@ -138,10 +146,10 @@ def main():
     emit('stepper cx=236 cy=128 w=400 h=50 label="" key=browse_bank_index prev=prev_browse_bank next=next_browse_bank get=browse_bank_name style=dotmatrix')
     emit('stepper cx=677 cy=128 w=450 h=50 label="" key=program get=patch_name prev=program_prev next=program_next style=dotmatrix')
     emit('stepper cx=1082 cy=128 w=324 h=50 label="" key=patch_page_index prev=patch_page_prev next=patch_page_next get=patch_page_text style=dotmatrix')
-    emit('frame x=36 y=168 w=560 h=544 title="BANKS"')
-    emit('list x=56 y=220 w=520 h=467 cols=2 rows=11 gap=6 th=37 key=bank_slot order=cols')
-    emit('frame x=612 y=168 w=632 h=544 title="PROGRAMS"')
-    emit('list x=632 y=220 w=592 h=472 cols=2 rows=14 gap=4 th=30 key=patch_slot order=cols')
+    emit('frame x=36 y=168 w=280 h=544 title="BANKS"')
+    emit('list x=56 y=220 w=240 h=472 cols=1 rows=22 gap=1 th=20 key=bank_slot order=cols')
+    emit('frame x=332 y=168 w=912 h=544 title="PROGRAMS"')
+    emit('list x=352 y=220 w=872 h=472 cols=3 rows=14 gap=4 th=30 key=patch_slot order=cols')
     qlinks("Banks", ["browse_bank_index", "program", "patch_page_prev", "patch_page_next"])
 
     # ---- OSC: four oscillators and noise, all into the filter
@@ -215,12 +223,12 @@ def main():
 
     # ---- MOD: envelope 3 and the four LFOs (the panel's top row)
     tab("MOD")
-    e3, _ = section(10, Y(0), "ENVELOPE 3", [[("DESTINATION", "env3_dest"), ("AMOUNT", "env3_amt"), ("VELOCITY", "env3_vel"), ("DELAY", "env3_delay")],
+    e3, _ = section(10, Y(0), "ENVELOPE 3", [[("DESTINATION", "^env3_dest"), ("AMOUNT", "env3_amt"), ("VELOCITY", "env3_vel"), ("DELAY", "env3_delay")],
                       [("ATTACK", "env3_a"), ("DECAY", "env3_d"), ("SUSTAIN", "env3_s"), ("RELEASE", "env3_r")]])
     lf = []
     for n in range(4):
         k, _ = section(700, Y(n), "LFO %d" % (n + 1), [[("FREQUENCY", "lfo%d_freq" % (n + 1)), ("SHAPE", "^lfo%d_shape" % (n + 1)),
-                        ("AMOUNT", "lfo%d_amt" % (n + 1)), ("DESTINATION", "lfo%d_dest" % (n + 1))]])
+                        ("AMOUNT", "lfo%d_amt" % (n + 1)), ("DESTINATION", "^lfo%d_dest" % (n + 1))]])
         lf += k
     wordmark(100, Y(2) + 40, 420, 120)
     qlinks("LFOs", lf)
@@ -230,13 +238,13 @@ def main():
     tab("MODS")
     mods = []
     for n in range(4):
-        k, _ = section(10, Y(n), "MODULATOR %d" % (n + 1), [[("SOURCE", "mod%d_src" % (n + 1)), ("DESTINATION", "mod%d_dest" % (n + 1)),
+        k, _ = section(10, Y(n), "MODULATOR %d" % (n + 1), [[("SOURCE", "^mod%d_src" % (n + 1)), ("DESTINATION", "^mod%d_dest" % (n + 1)),
                         ("AMOUNT", "mod%d_amt" % (n + 1))]])
         mods += k
     fixed = []
     pairs = [("MOD WHEEL", "wheel"), ("PRESSURE", "press"), ("BREATH", "breath"), ("VELOCITY", "vel"), ("FOOT CONTROLLER", "foot")]
     for i, (title, k) in enumerate(pairs):
-        keys, _ = section(450 + 300 * (i % 2), Y(i // 2), title, [[("AMOUNT", "%s_amt" % k), ("DESTINATION", "%s_dest" % k)]])
+        keys, _ = section(450 + 300 * (i % 2), Y(i // 2), title, [[("AMOUNT", "%s_amt" % k), ("DESTINATION", "^%s_dest" % k)]])
         fixed += keys
     wordmark(1040, Y(3) + 30, 230, 70)
     qlinks("Mods", mods + ["wheel_amt", "wheel_dest", "press_amt", "press_dest"])
@@ -246,11 +254,8 @@ def main():
     for pair in ((1, 2), (3, 4)):
         tab("SEQ %d-%d" % pair)
         for j, t in enumerate(pair):
-            keys = []
-            for half in range(2):
-                items = [[("%d" % (8 * half + k + 1), "s%d_%d" % (t, 8 * half + k + 1)) for k in range(8)]]
-                ks, _ = section(80, Y(2 * j + half), "SEQUENCE %d  STEPS %d-%d" % (t, 8 * half + 1, 8 * half + 8), items)
-                keys += ks
+            items = [[("%d" % (8 * half + k + 1), "s%d_%d" % (t, 8 * half + k + 1)) for k in range(8)] for half in range(2)]
+            keys, _ = section(80, Y(2 * j), "SEQUENCE %d  STEPS 1-16" % t, items)
             qlinks("Seq %d" % t, keys)
 
     with open(os.path.join(VST, "layout.conf"), "w") as f:

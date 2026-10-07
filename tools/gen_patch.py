@@ -8,6 +8,7 @@ Ranges are the manual's (Program Parameter Data, p. 66-71) and agree with the ra
 2026-10-06, all 128 match). Init values are this project's own basic sound, not the factory's.
 """
 import json
+import re
 import sys
 
 # formats (how the engine prints the value): int, note, cents, ashape, wave, s99 (value-99), lfof, lfoamt, dest, sdest, src,
@@ -97,19 +98,35 @@ EXTRA = [
     {"key": "quality", "name": "Quality", "options": ["Eco 1x", "High 2x", "Ultra 4x"], "default": 1},
     # banks page (appended): the browsed bank and program page are view state; a program tile loads
     {"key": "browse_bank_index", "name": "Browse Bank", "min": 0, "max": 47, "default": 0, "display": "int", "dynamic_display": True},
-    {"key": "patch_page_index", "name": "Program Page", "min": 0, "max": 4, "default": 0, "display": "int", "dynamic_display": True},
+    {"key": "patch_page_index", "name": "Program Page", "min": 0, "max": 3, "default": 0, "display": "int", "dynamic_display": True},
     {"key": "browse_bank_name", "name": "Browse Bank Name", "min": 0, "max": 1, "default": 0, "display": "string"},
     {"key": "patch_page_text", "name": "Program Page Text", "min": 0, "max": 1, "default": 0, "display": "string"},
 ] + [{"key": k, "name": n, "min": 0, "max": 1, "default": 0, "momentary": True, "type": "trigger"}
      for k, n in (("prev_browse_bank", "Browse Bank <"), ("next_browse_bank", "Browse Bank >"), ("patch_page_prev", "Page <"), ("patch_page_next", "Page >"))] + [
     {"key": "bank_slot_%d" % i, "name": "Bank %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 23)] + [
-    {"key": "patch_slot_%d" % i, "name": "Program %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 29)]
+    {"key": "patch_slot_%d" % i, "name": "Program %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 43)]
+
+def engine_names(var):
+    """A name table of src/engine.c (the one place the destination and source names live)."""
+    import os
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "engine.c")).read()
+    body = src[src.index(var):]
+    body = body[body.index("{") + 1:body.index("};")]
+    return re.findall(r'"([^"]*)"', body)
+
+def picker_options(fmt, mx):
+    """The destination and source parameters are pickers: an option per value (the host's 0..1 value is value / max either way)."""
+    names = engine_names({"dest": "DEST_NAMES", "sdest": "DEST_NAMES", "src": "SRC_NAMES"}[fmt])
+    return names[:mx + 1]
 
 def params_json():
     out = []
     for key, name, mx, d, fmt in P + STEPS:
         e = {"key": key, "name": name}
-        if isinstance(fmt, list):
+        if fmt in ("dest", "sdest", "src"):
+            e["options"] = picker_options(fmt, mx)
+            e["default"] = d
+        elif isinstance(fmt, list):
             e["options"] = fmt
             e["default"] = d
         else:

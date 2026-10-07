@@ -113,12 +113,13 @@ Without any files, eight built-in programs of this project's own play on the ope
 ## Using it
 
 Nine tabs, grouped like the instrument's panel sections and in its signal order, with amber flow lines showing the path:
-**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **BANKS** (every bank found in the plugin folder, and its programs, as tiles: tap a bank to browse it, tap a program to load it;
+**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **BANKS** (every bank found in the plugin folder in one column, and 42 programs a page in three columns, as tiles: tap a bank to browse it, tap a program to load it;
 the bank, program and page steppers, the Q-Links (bank, program, page back, page forward) and the data wheel step the same values),
 **OSC** (oscillators 1-4 and noise
 feeding the filter), **FILTER** (low pass filter into the amplifier), **FX** (high pass, tuned feedback,
 distortion, delay, output hack, voice volume), **MOD** (envelope 3 and the four LFOs), **MODS** (the four modulators and the fixed
-controller routes), **SEQ 1-2** and **SEQ 3-4** (the step sequencer, one Q-Link page per track).
+controller routes; every destination and source is a picker with the choices in groups), **SEQ 1-2** and **SEQ 3-4** (the step
+sequencer, one panel of 16 steps per track and one Q-Link page per track).
 
 The look takes its cues from the instrument without copying it: an ultramarine plate, brighter rounded blue sections, black
 pointer knobs, red LEDs and a grey LCD. The wordmark and every drawing are this project's own.

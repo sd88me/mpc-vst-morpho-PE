@@ -108,7 +108,8 @@ typedef struct {
     float host_bpm;
     int seq_run, clock_src, transport;
     float waves[PE_NWAVES][PE_WLEN];
-    int user_waves, rom_waves, wav_waves;   /* rom_waves: the 95 ROM waves came from the user's VS ROM images */
+    int rom_waves;                 /* the 95 ROM waves came from the user's VS ROM images */
+    uint8_t wave_from_file[PE_NWAVES];   /* slots a file replaced (the status counts each slot once) */
     bankref_t banks[MAXBANKS];
     int nbanks, cur_bank, cur_prog, browse_bank, browse_page, browse_valid;
     uint8_t bankdata[128][NPATCH];
@@ -233,7 +234,7 @@ static void wave_cb(void *c, int cmd, const uint8_t *b, int n) {
     float w[PE_WLEN];
     if (cmd != SYX_WAVE) return;
     int slot = waves_from_dump(b, n, w);
-    if (slot >= 0) { memcpy(s->waves[slot], w, sizeof w); s->user_waves++; }
+    if (slot >= 0) { memcpy(s->waves[slot], w, sizeof w); s->wave_from_file[slot] = 1; }
 }
 static int cmpstr(const void *a, const void *b) { return strcasecmp(*(char *const *)a, *(char *const *)b); }
 static void scan_dir(pe_t *s, const char *dir) {
@@ -274,11 +275,9 @@ static void scan_dir(pe_t *s, const char *dir) {
             for (int k = 0; k < got && k < 87; k++) {
                 int slot = k + (k <= 10 ? 3 : k <= 19 ? 4 : k == 20 ? 5 : k <= 47 ? 6 : 7);
                 memcpy(s->waves[slot], tmp[k], sizeof tmp[k]);
+                s->wave_from_file[slot] = 1;
             }
-            if (got > 91) memcpy(s->waves[1], tmp[91], sizeof tmp[91]);
-            int placed = (got < 87 ? got : 87) + (got > 91);
-            s->user_waves += placed;
-            s->wav_waves += placed;
+            if (got > 91) { memcpy(s->waves[1], tmp[91], sizeof tmp[91]); s->wave_from_file[1] = 1; }
             free(tmp);
             free(buf);
             buf = NULL;
@@ -287,7 +286,7 @@ static void scan_dir(pe_t *s, const char *dir) {
             for (size_t p = 0; p + 4 < len; p++)   /* Prophet VS RAM wave dumps: its 32 user waves become waves 97-128 */
                 if (buf[p] == 0xF0 && buf[p + 1] == 0x01 && buf[p + 2] == 0x0A && buf[p + 3] == 0x7F) {
                     float (*vs)[PE_WLEN] = malloc(sizeof(float) * 32 * PE_WLEN);
-                    if (vs && waves_from_vs_dump(buf + p, len - p, vs) == 32) { memcpy(s->waves[96], vs, sizeof(float) * 32 * PE_WLEN); s->user_waves += 32; }
+                    if (vs && waves_from_vs_dump(buf + p, len - p, vs) == 32) { memcpy(s->waves[96], vs, sizeof(float) * 32 * PE_WLEN); memset(s->wave_from_file + 96, 1, 32); }
                     free(vs);
                 }
             wavectx_t wc = {s};
@@ -319,8 +318,7 @@ static void scan_dir(pe_t *s, const char *dir) {
             if (waves_from_vs_rom(rom[a], romlen[a], a == b ? NULL : rom[b], romlen[b], vw) == 95) {
                 memcpy(s->waves[0], vw, sizeof(float) * 95 * PE_WLEN);
                 s->rom_waves = 1;
-                s->user_waves += 95 - s->wav_waves;   /* replaces any recording's waves */
-                s->wav_waves = 0;
+                memset(s->wave_from_file, 1, 95);
             }
     free(vw);
     for (int a = 0; a < nrom; a++) free(rom[a]);
@@ -350,7 +348,7 @@ static void load_bank(pe_t *s, int bi) {
     s->browse_page = 0;
 }
 #define BANK_SLOTS 22
-#define PROG_SLOTS 28
+#define PROG_SLOTS 42
 #define PROG_PAGES ((128 + PROG_SLOTS - 1) / PROG_SLOTS)
 /* the names of the browsed bank's programs: the loaded bank's own, the factory list, or read from the bank's file */
 static void browse_names(pe_t *s) {
@@ -1239,9 +1237,12 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
     if (!strcmp(k, "seq_reset")) return snprintf(b, (size_t)n, "0") + 1;
     if (!strcmp(k, "voices")) return snprintf(b, (size_t)n, "%d", s->nv) + 1;
     if (!strcmp(k, "quality")) return snprintf(b, (size_t)n, "%d", s->os == 4 ? 2 : s->os == 2 ? 1 : 0) + 1;
-    if (!strcmp(k, "status"))
-        return (s->user_waves ? snprintf(b, (size_t)n, "%d banks, %d waves loaded", s->nbanks, s->user_waves)
-                              : snprintf(b, (size_t)n, "%d banks, open waves", s->nbanks)) + 1;
+    if (!strcmp(k, "status")) {
+        int nw = 0;
+        for (int w = 0; w < PE_NWAVES; w++) nw += s->wave_from_file[w];
+        return (nw ? snprintf(b, (size_t)n, "%d banks, %d waves loaded", s->nbanks, nw)
+                   : snprintf(b, (size_t)n, "%d banks, open waves", s->nbanks)) + 1;
+    }
     return 0;
 }
 
