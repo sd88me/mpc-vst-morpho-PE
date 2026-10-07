@@ -71,6 +71,11 @@
   mpc-vst-plugins, branch shared-popup-images, not merged; without it 3001 files / 23 MB, which loaded fine on the Force). On the Force the
   Banks tab lists the user's factory banks (PolyKey_Programs_Combos B1-B4) with names, the Program tab shows "5 banks, 127 waves loaded", the
   pickers show their names, and the tabs render as in the offline previews. Not yet tried: tapping tiles, the pickers and the data wheel.
+- Level (2026-10-07): the factory banks' programs rendered at a spread of peaks from -24 to 0 dBFS (median -12 dB at 0.35 master gain: 9 dB of headroom for
+  chords): a program's own settings decide it (distortion x32 into a hard clip is +24 dB over the clean sound: the built-in Sequenced Bass was 14 dB
+  louder than the rest and now has its Volume at 30), and even two saws at level 100 only reached -11 dB. New host parameter **Output Trim** (FX tab,
+  -12 to +18 dB, +6 by default) and a soft knee above 0.7 in place of the hard clip: median -6 dB, 90th percentile at full scale and limited softly.
+  There is no recording of the instrument to calibrate the absolute level against.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)

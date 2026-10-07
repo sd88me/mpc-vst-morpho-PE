@@ -108,6 +108,7 @@ typedef struct {
     float host_bpm;
     int seq_run, clock_src, transport;
     float waves[PE_NWAVES][PE_WLEN];
+    int trim;                      /* output trim: 0..30 = -12..+18 dB */
     int rom_waves;                 /* the 95 ROM waves came from the user's VS ROM images */
     uint8_t wave_from_file[PE_NWAVES];   /* slots a file replaced (the status counts each slot once) */
     bankref_t banks[MAXBANKS];
@@ -942,6 +943,7 @@ static void *pe_create(const char *dir) {
     s->last_note = 60;
     s->clock_src = 1;
     s->os = PE_DEFAULT_OS;
+    s->trim = 18;
     s->rng = 0x13579BDFu;
     for (int i = 0; i < MAXV; i++) {
         s->v[i].dly = calloc(DLEN, sizeof(float));
@@ -1072,10 +1074,12 @@ static void pe_render(void *h, int16_t *out, int frames) {
                 P(s, P_FB_LEVEL) == 0 && v->damt[0] + v->damt[1] + v->damt[2] == 0)
                 v->sounding = 0;
         }
-        float g = 0.35f * s->cc_vol;
+        /* 9 dB of headroom for chords, then the output trim (+6 dB by default); peaks above 0.7 are folded in with a soft knee so a loud
+         * program or a chord limits gently instead of clipping hard */
+        float g = 0.35f * s->cc_vol * powf(10.0f, (s->trim - 12) * 0.05f);
         for (int i = 0; i < 2 * n; i++) {
-            float x = buf[i] * g;
-            x = x > 1 ? 1 : x < -1 ? -1 : x;
+            float x = buf[i] * g, a = fabsf(x);
+            if (a > 0.7f) { a = 0.7f + 0.3f * ma_tanh((a - 0.7f) * (1.0f / 0.3f)); x = x < 0 ? -a : a; }
             out[2 * f + i] = (int16_t)lrintf(x * 32767);
         }
     }
@@ -1178,6 +1182,7 @@ static void pe_set_param(void *h, const char *k, const char *val) {
     else if (!strcmp(k, "seq_run")) s->seq_run = clampi(x, 0, 2);
     else if (!strcmp(k, "clock_src")) s->clock_src = clampi(x, 0, 1);
     else if (!strcmp(k, "seq_reset")) { if (x) for (int v = 0; v < s->nv; v++) seq_reset(&s->v[v].seq); }
+    else if (!strcmp(k, "trim")) s->trim = clampi(x, 0, 30);
     else if (!strcmp(k, "quality")) s->os = clampi(x, 0, 2) == 0 ? 1 : x == 1 ? 2 : 4;
     else if (!strcmp(k, "voices")) { int n = clampi(x, 1, MAXV); if (n != s->nv) { all_off(s); s->nv = n; } }
     else if (!strcmp(k, "lfo_bpm")) s->host_bpm = (float)atof(val);
@@ -1199,6 +1204,7 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
         snprintf(base, sizeof base, "%.*s", (int)(kl - 8), k);
         int i = find_key(base);
         if (i >= 0) return format_value(s, i, b, n);
+        if (!strcmp(base, "trim")) return snprintf(b, (size_t)n, "%+d dB", s->trim - 12) + 1;
         if (!strcmp(base, "browse_bank_index")) return snprintf(b, (size_t)n, "%d", s->browse_bank + 1) + 1;
         if (!strcmp(base, "patch_page_index")) return snprintf(b, (size_t)n, "%d", s->browse_page + 1) + 1;
         if (!strcmp(base, "bank")) return snprintf(b, (size_t)n, "%d %s", s->cur_bank + 1, s->banks[s->cur_bank].name) + 1;
@@ -1236,6 +1242,7 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
     if (!strcmp(k, "clock_src")) return snprintf(b, (size_t)n, "%d", s->clock_src) + 1;
     if (!strcmp(k, "seq_reset")) return snprintf(b, (size_t)n, "0") + 1;
     if (!strcmp(k, "voices")) return snprintf(b, (size_t)n, "%d", s->nv) + 1;
+    if (!strcmp(k, "trim")) return snprintf(b, (size_t)n, "%d", s->trim) + 1;
     if (!strcmp(k, "quality")) return snprintf(b, (size_t)n, "%d", s->os == 4 ? 2 : s->os == 2 ? 1 : 0) + 1;
     if (!strcmp(k, "status")) {
         int nw = 0;

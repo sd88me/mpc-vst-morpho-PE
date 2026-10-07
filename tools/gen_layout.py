@@ -207,6 +207,7 @@ def main():
                       [("AMOUNT 1", "dly1_level"), ("AMOUNT 2", "dly2_level"), ("AMOUNT 3", "dly3_level"), ("FEEDBACK 2", "dly_fb2")]])
     hk, bk = section(970, 276, "OUTPUT HACK", [[("AMOUNT", "out_hack")]])
     vv, bv = section(970, 456, "VOICE VOL", [[("LEVEL", "volume")]])
+    tr, bt = section(820, 456, "OUTPUT TRIM", [[("LEVEL", "trim")]])
     fl.label(20, 262, "FROM AMP")
     fl.line((right(bh), mid(bh)), (bf[0], mid(bf)))
     fl.line((right(bf), mid(bf)), (bd[0], mid(bd)))
@@ -219,7 +220,7 @@ def main():
     fl.label(300, 624, "FEEDBACK 2 TO THE FILTER", "middle")
     fl.write()
     wordmark(880, Y(3) + 40, 360, 100)
-    qlinks("FX", hp + fb + di + dl + hk + vv + ["pan"])
+    qlinks("FX", hp + fb + di + dl + hk + vv + tr)
 
     # ---- MOD: envelope 3 and the four LFOs (the panel's top row)
     tab("MOD")

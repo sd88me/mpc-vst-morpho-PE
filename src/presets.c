@@ -23,7 +23,7 @@ static const preset_t PRESETS[] = {
         {P_LPF_FREQ, 130}, {P_AENV_D, 70}, {P_AENV_S, 0}, {P_AENV_R, 50}, {P_PAN, 3}, END}},
     {"Sequenced Bass", {{P_OSC1_FREQ, 12}, {P_OSC2_FREQ, 12}, {P_OSC2_SHAPE, 50}, {P_OSC2_FINE, 53}, {P_LPF_FREQ, 50}, {P_LPF_RES, 55},
         {P_LPF_ENV, S99(60)}, {P_FENV_D, 35}, {P_AENV_D, 45}, {P_AENV_S, 0}, {P_AENV_R, 10}, {P_TRIGGER, 5}, {P_CLOCK_DIV, 6},
-        {P_SEQ1_DEST, 5}, {P_SEQ2_DEST, 20}, {P_DIST, 20},
+        {P_SEQ1_DEST, 5}, {P_SEQ2_DEST, 20}, {P_DIST, 20}, {P_VOLUME, 30},   /* distortion 20 is x32 into a hard clip: volume brings it level with the others */
         STEP(0, 0, 0), STEP(0, 1, 24), STEP(0, 2, 0), STEP(0, 3, 14), STEP(0, 4, 0), STEP(0, 5, 0), STEP(0, 6, 20), STEP(0, 7, 102),
         STEP(1, 0, 40), STEP(1, 1, 10), STEP(1, 2, 25), STEP(1, 3, 0), STEP(1, 4, 60), STEP(1, 5, 5), STEP(1, 6, 30), STEP(1, 7, 0),
         STEP(0, 8, 101), STEP(1, 8, 101), END}},

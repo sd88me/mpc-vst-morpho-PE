@@ -3927,6 +3927,15 @@
    "max": 1,
    "default": 0,
    "display": "string"
+  },
+  {
+   "key": "trim",
+   "name": "Output Trim",
+   "min": 0,
+   "max": 30,
+   "default": 18,
+   "display": "int",
+   "dynamic_display": true
   }
  ]
 }

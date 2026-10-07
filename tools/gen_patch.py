@@ -104,7 +104,9 @@ EXTRA = [
 ] + [{"key": k, "name": n, "min": 0, "max": 1, "default": 0, "momentary": True, "type": "trigger"}
      for k, n in (("prev_browse_bank", "Browse Bank <"), ("next_browse_bank", "Browse Bank >"), ("patch_page_prev", "Page <"), ("patch_page_next", "Page >"))] + [
     {"key": "bank_slot_%d" % i, "name": "Bank %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 23)] + [
-    {"key": "patch_slot_%d" % i, "name": "Program %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 43)]
+    {"key": "patch_slot_%d" % i, "name": "Program %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 43)] + [
+    # output trim (appended): the engine leaves 9 dB of headroom for chords; the trim is in dB from -12 (0) to +18 (30), +6 by default
+    {"key": "trim", "name": "Output Trim", "min": 0, "max": 30, "default": 18, "display": "int", "dynamic_display": True}]
 
 def engine_names(var):
     """A name table of src/engine.c (the one place the destination and source names live)."""
