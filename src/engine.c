@@ -12,6 +12,7 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include "engine.h"
+#include "mpc_analog.h"
 #include "patch_tab.h"
 #include "curves.h"
 #include "syx.h"
@@ -64,7 +65,6 @@ typedef struct { int st; float lvl, x, t; } env_t;
 typedef struct { float ph, out, hold; } lfo_t;
 typedef struct { int pos[4], running, gate, once, steps_done; float phase, gate_t, cur[4]; } seq_t;
 
-typedef struct { float z[64]; int p; } hb_t;   /* half-band decimator history */
 typedef struct {
     int note, vel, gated, sounding;
     unsigned age;
@@ -82,7 +82,7 @@ typedef struct {
     int shape[2], wave[2], hpv, distv, hack;
     float dlen[3], damt[3];
     /* audio state */
-    hb_t dec[2][2];
+    ma_hb_t dec[2][2];
     float sync_corr;              /* the part of a hard-sync jump still to add to the next oscillator 1 sample */
     float bpre[2];                /* last mixer input from the base-rate parts, for the upsampling interpolation */
     float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_peak, gate_fade, gate_g0, gain_gate, distg, dfb;
@@ -127,26 +127,6 @@ static float LFO_HZ[151];
 /* ---------------- helpers ---------------- */
 static float clampf(float x, float a, float b) { return x < a ? a : x > b ? b : x; }
 static int clampi(int x, int a, int b) { return x < a ? a : x > b ? b : x; }
-static float ftanh(float x) { x = clampf(x, -3, 3); return x * (27 + x * x) / (27 + 9 * x * x); }
-/* Half-band lowpass (cutoff fs/4, Kaiser window): the centre tap is 0.5, even taps are zero, tap 2j+1 is c[j] (both sides). */
-static double bessel0(double x) { double s = 1, t = 1; for (int k = 1; k < 40; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; } return s; }
-static void hb_design(float *c, int m, double beta) {
-    int K = 2 * m - 1;
-    for (int j = 0; j < m; j++) {
-        int k = 2 * j + 1;
-        double w = bessel0(beta * sqrt(1 - (double)k * k / ((K + 1.0) * (K + 1.0)))) / bessel0(beta);
-        c[j] = (float)(sin(3.14159265358979 * k / 2) / (3.14159265358979 * k) * w);
-    }
-}
-/* two input samples in (oldest first), one out at half the rate */
-static float hb_dec(hb_t *h, const float *c, int m, float x0, float x1) {
-    h->z[h->p & 63] = x0; h->z[(h->p + 1) & 63] = x1; h->p += 2;
-    int K = 2 * m - 1, mid = h->p - 1 - K;
-    float y = 0.5f * h->z[mid & 63];
-    for (int j = 0; j < m; j++) y += c[j] * (h->z[(mid - 2 * j - 1) & 63] + h->z[(mid + 2 * j + 1) & 63]);
-    return y;
-}
-
 static float rnd(uint32_t *s) { *s = *s * 1664525u + 1013904223u; return (float)(int32_t)*s * (1.0f / 2147483648.0f); }
 static int P(const pe_t *s, int i) { return s->patch[i]; }
 static float s99(const pe_t *s, int i) { return (float)s->patch[i] - 99; }
@@ -173,8 +153,7 @@ static void init_tables(void) {
         if (f > 0.45f * FS) f = 0.45f * FS;
         for (int q = 0; q < 3; q++) { float gq = tanf(3.14159265f * f / (FS * (1 << q))); G_TAB[q][i] = gq / (1 + gq); }
     }
-    hb_design(HB_A, 6, 6.0);
-    hb_design(HB_B, 12, 8.6);
+    ma_hb_design_standard(HB_A, HB_B);
     for (int i = 0; i <= 440; i++) { ENV_S[i] = pe_env_seconds(i * 0.25f); ENV_T[i] = pe_env_tau_seconds(i * 0.25f); }
     for (int i = 0; i <= 150; i++) LFO_HZ[i] = pe_lfo_hz(i);
     done = 1;
@@ -728,80 +707,12 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
     v->hack = P(s, P_OUT_HACK);
 }
 
-static float polyblep(float t, float dt) {
-    if (t < dt) { t /= dt; return t + t - t * t - 1; }
-    if (t > 1 - dt) { t = (t - 1) / dt; return t * t + t + t + 1; }
-    return 0;
-}
-/* CEM3340-style ramp-core VCO: saw from the integrator, triangle folded from it, pulse from a comparator on it. The saw and pulse
- * edges are band-limited with a 2-point polyBLEP, the triangle corners with a polyBLAMP; the integrator's ramp bends very slightly
- * (a leaky capacitor) which the saw carries as a little 2nd harmonic. */
-static float polyblamp(float t, float dt) {
-    if (t < dt) { t = t / dt - 1; return -(1.0f / 3) * t * t * t * dt; }
-    if (t > 1 - dt) { t = (t - 1) / dt + 1; return (1.0f / 3) * t * t * t * dt; }
-    return 0;
-}
-static float analog_osc(int shape, float ph, float inc, float duty) {
-    float saw = 2 * ph - 1 - polyblep(ph, inc);
-    float t2 = ph + 0.5f;
-    if (t2 >= 1) t2 -= 1;
-    float tri = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph;
-    tri += 4 * (polyblamp(ph, inc) - polyblamp(t2, inc));   /* the kernels are for a step of height 2: a slope change of 8 needs 4 */
-    saw += 0.02f * (1 - saw * saw) - 0.0133f;
-    switch (shape) {
-    case 0: return saw;
-    case 1: return tri;
-    case 2: return 0.5f * (saw + tri);
-    default: {
-        if (duty <= 0.0f || duty >= 1.0f) return 0;    /* the pulse turns off at both extremes */
-        float x = ph < duty ? 1.0f : -1.0f;
-        x += polyblep(ph, inc);
-        float t3 = ph - duty + (ph < duty ? 1 : 0);
-        x -= polyblep(t3, inc);
-        return x - (2 * duty - 1);
-    }
-    }
-}
-/* The same waveform without band-limiting, for the jump hard sync causes. */
-static float naive_osc(int shape, float ph, float duty) {
-    float saw = 2 * ph - 1 + 0.02f * (1 - (2 * ph - 1) * (2 * ph - 1)) - 0.0133f;
-    float tri = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph;
-    switch (shape) {
-    case 0: return saw;
-    case 1: return tri;
-    case 2: return 0.5f * (saw + tri);
-    default: return (duty <= 0.0f || duty >= 1.0f) ? 0 : (ph < duty ? 1.0f : -1.0f) - (2 * duty - 1);
-    }
-}
 static float wave_read(const float *w, float ph) {
     float x = ph * PE_WLEN;
     int i = (int)x;
     float f = x - i;
     i &= PE_WLEN - 1;
     return w[i] + f * (w[(i + 1) & (PE_WLEN - 1)] - w[i]);
-}
-
-static float ota_lpf(float *st, float *nl, float G0, float k, int four, float in) {
-    int ns = four ? 4 : 2;
-    float Gs[4], a = 1, b = 0;
-    for (int j = 0; j < ns; j++) {
-        /* cutoff of an OTA that has begun to limit: g(1 - n) in G = g / (1 + g) terms, to second order in n (no division) */
-        float n = nl[j];
-        Gs[j] = G0 * (1 - n) * (1 + n * G0 * (1 + n * G0));
-        b = Gs[j] * b + (1 - Gs[j]) * st[j];
-        a *= Gs[j];
-    }
-    /* the input limiter is wide (a clean signal up to about 1, soft above) and the stages limit gently: self-oscillation settles near 0.5 */
-    float prev = 3.0f * ftanh((in * (1 + (four ? 0.35f : 0.1f) * k) - k * b) / (1 + k * a) * (1.0f / 3));
-    for (int j = 0; j < ns; j++) {
-        float vv = (prev - st[j]) * Gs[j], yy = vv + st[j];
-        st[j] = yy + vv;
-        float u = (prev - yy) * 0.5f;
-        nl[j] = u * u / (3 + u * u);        /* 1 - tanh(u) / u, roughly */
-        prev = yy;
-    }
-    if (!four) st[2] = st[3] = 0;
-    return prev;
 }
 
 /* One voice, CTL samples, added into out[] (stereo float). */
@@ -839,26 +750,21 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
         for (int k = 0; k < OS; k++) {
             float tt = (i * OS + k + 1) / (float)(n * OS), ti = (k + 1) / (float)OS;
             float inc1 = v->inc[0] / OS, inc2 = v->inc[1] / OS;
-            float o2 = analog_osc(v->shape[1], v->ph[1], inc2, v->duty[1]);
+            float o2 = ma_osc(v->shape[1], v->ph[1], inc2, v->duty[1]);
             v->ph[1] += inc2;
             int wrap2 = v->ph[1] >= 1;
             if (wrap2) v->ph[1] -= 1;
-            float o1 = analog_osc(v->shape[0], v->ph[0], inc1, v->duty[0]) + v->sync_corr;
+            float o1 = ma_osc(v->shape[0], v->ph[0], inc1, v->duty[0]) + v->sync_corr;
             v->sync_corr = 0;
             v->ph[0] += inc1;
             if (v->ph[0] >= 1) v->ph[0] -= 1;
             if (sync && wrap2) {
                 /* hard sync: oscillator 2 wrapped d samples before the next one, resetting oscillator 1 to phase 0 there. The jump
                  * D is band-limited with the polyBLEP kernels: this sample gets the part before the jump, the next one the rest. */
-                float d = v->ph[1] / inc2;
-                float pre = v->ph[0] - inc1 * d;
-                pre -= floorf(pre);
-                float jump = naive_osc(v->shape[0], 0, v->duty[0]) - naive_osc(v->shape[0], pre, v->duty[0]);
-                /* analog_osc already applies the kernel of its own wrap at phase 0 (a saw falls by 2, a pulse rises by 2) to the
-                 * first sample after the reset, so only the difference to that is left for the next sample */
-                static const float own[4] = {-2, 0, -1, 2};
-                o1 += 0.5f * jump * d * d;
-                v->sync_corr = 0.5f * (jump - own[v->shape[0] < 3 ? v->shape[0] : 3]) * (2 * d - d * d - 1);
+                float d = v->ph[1] / inc2, now, next;
+                ma_sync(v->shape[0], v->duty[0], v->ph[0], inc1, d, &now, &next);
+                o1 += now;
+                v->sync_corr = next;
                 v->ph[0] = v->ph[1] * v->inc[0] / v->inc[1];
             }
             float nz = rnd(&v->rng) * v->noise * 0.5f;
@@ -868,19 +774,19 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             float g = v->vca_prev + (v->vca - v->vca_prev) * tt;
             for (int c = 0; c < 2; c++) {
                 float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * tt + am * osc_am[c];
-                float y = ota_lpf(v->lad[c], v->ladd[c], lpf_G(s->os == 4 ? 2 : s->os == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
-                ys[k][c] = ftanh(y * g * 0.8f) * 1.25f;     /* the VCA's OTA saturates softly at large levels */
+                float y = ma_ota_lpf(v->lad[c], v->ladd[c], lpf_G(s->os == 4 ? 2 : s->os == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
+                ys[k][c] = ma_tanh(y * g * 0.8f) * 1.25f;     /* the VCA's OTA saturates softly at large levels */
             }
         }
         v->bpre[0] = bnow[0]; v->bpre[1] = bnow[1];
         float ab[2];
         for (int c = 0; c < 2; c++) {
             if (OS == 1) ab[c] = ys[0][c];
-            else if (OS == 2) ab[c] = hb_dec(&v->dec[c][1], HB_B, 12, ys[0][c], ys[1][c]);
+            else if (OS == 2) ab[c] = ma_hb_dec(&v->dec[c][1], HB_B, MA_HB_B_M, ys[0][c], ys[1][c]);
             else {
-                float u0 = hb_dec(&v->dec[c][0], HB_A, 6, ys[0][c], ys[1][c]);
-                float u1 = hb_dec(&v->dec[c][0], HB_A, 6, ys[2][c], ys[3][c]);
-                ab[c] = hb_dec(&v->dec[c][1], HB_B, 12, u0, u1);
+                float u0 = ma_hb_dec(&v->dec[c][0], HB_A, MA_HB_A_M, ys[0][c], ys[1][c]);
+                float u1 = ma_hb_dec(&v->dec[c][0], HB_A, MA_HB_A_M, ys[2][c], ys[3][c]);
+                ab[c] = ma_hb_dec(&v->dec[c][1], HB_B, MA_HB_B_M, u0, u1);
             }
         }
         float a = ab[0], b = ab[1];
@@ -939,7 +845,7 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             float x0 = v->dly[pi], x1 = v->dly[(pi + 1) & (DLEN - 1)];
             dsum += (x0 + pf * (x1 - x0)) * v->damt[k];
         }
-        v->dly[v->dpos] = din + ftanh(dsum * v->fb1);
+        v->dly[v->dpos] = din + ma_tanh(dsum * v->fb1);
         v->dpos = (v->dpos + 1) & (DLEN - 1);
         v->dfb = dsum;
         L += dsum; R += dsum;

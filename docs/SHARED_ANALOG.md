@@ -58,10 +58,10 @@ The release workflow builds from one repository, so the library has to be inside
 - **vendored copy** synced by a script (`tools/sync_analog.sh`): simplest for CI, risks drift.
 `vst.json` lists sources relative to the repo root, so either works with `"sources": [..., "third_party/mpc-analog/src/*.c"]`.
 
-## Order of work (proposed; nothing here is done yet)
-1. Create `mpc-analog` locally with the oscillator and cascade ported from both, plus the tests above; check each against its plugin's
+## Order of work (2026-10-07: steps 1 and 2 started)
+1. (Started: `../mpc-analog`, local only, header `include/mpc_analog.h` with Morpho-PE's oscillator, cascade, half-band decimators and tanh; Sturm's exact DCO and filter noise floor are still to add, see its docs/PLAN.md.) Create `mpc-analog` locally with the oscillator and cascade ported from both, plus the tests above; check each against its plugin's
    current output (null test: the plugin's rendered audio must not change beyond the intended improvements).
-2. Move Morpho-PE onto it (it has the oversampler and the ZDF cascade already), measure on the Force (`prof_arm` harness).
+2. (Done offline: `src/mpc_analog.h` is a synced copy, `engine.c` calls `ma_*`; the render hash over all programs at 1x/2x/4x is bit-identical to before. Device timing not yet re-measured.) Move Morpho-PE onto it (it has the oversampler and the ZDF cascade already), measure on the Force (`prof_arm` harness).
 3. Move Sturm onto it once its session is at a quiet point; both plugins keep their own tests.
 4. Then publish the library and add it to the catalog's notes for other ports.
 

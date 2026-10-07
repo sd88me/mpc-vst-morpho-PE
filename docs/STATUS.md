@@ -24,6 +24,8 @@
   decimators (about 70 dB down above the band). Saw/pulse aliasing at C6-F#7 falls from about -33 dB (1x) to about -49 dB (2x); 4x gains
   little more, and costs about 3.6x the engine's CPU against 1.8x for 2x (x86; the device is unmeasured, so check docs/BENCH.md before
   defaulting to 2x).
+- Shared kernels (2026-10-07): the oscillator, OTA cascade, half-band decimators and tanh now live in `src/mpc_analog.h`, a synced copy of
+  `../mpc-analog/include/mpc_analog.h` (`../mpc-analog/sync.sh --check src`); output is bit-identical to before (docs/SHARED_ANALOG.md).
 - Compared offline with a scalar port of the OB-Xd 4-pole as sst-filters publishes it (study only, nothing copied): the linear
   cascade and feedback solve are the same; OB-Xd is nearly linear until its self-oscillation (about 3-4.6 amplitude), here the OTAs
   limit (0.14 % THD at amplitude 0.8, 2.5 % at 3.2; self-oscillation about 0.5). Which is nearer the Evolver needs a recording.
