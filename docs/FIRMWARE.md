@@ -210,3 +210,20 @@ cycles ("3rd and 5th, no fundamental" and "heavy 7th" do not fall where it predi
 and v1.2, a high and a low byte chip): each 32 KB chip is 16 KB of code (different between versions) and 16 KB identical in both (128 blocks
 of 128 bytes; block 255 is random bytes, so it is the noise wave 127); the waves in them are not stored as plain consecutive 16-bit samples
 (no permutation of the sample address makes them smooth) and could not be decoded.
+
+## 14. The VS ROM chips against Arturia's wave ROM (2026-10-07, user-supplied files kept local)
+
+`resources/roms/waverom.bin` in the Arturia Prophet-VS V installer (an Inno Setup archive; unpacked with innoextract, not run) is 24 320
+bytes: 95 waves of 128 little-endian 16-bit words, a 12-bit sample in the top bits (the low nibble of each word is 0). Against the
+single-cycle WAV (cycles band-limited to 20 harmonics, best circular correlation, polarity free): cycles 0-86 are ROM waves in
+increasing order (0-based index j = cycle + 3 up to cycle 10, then cycle + 4 to 19, then growing as the WAV leaves out ROM waves 0, 2, 14,
+24, 26, 54 and 94), mostly 0.95-1.00, a few bright ones 0.76-0.92; cycles 74-84 land on j = 81-91, i.e. Evolver wave j + 1 = 82-92, as
+section 13 found. Cycles 87-103 are not in order: some repeat ROM waves (91 is j = 1; 92-95 are 3, 5, 6, 7) and some match nothing well.
+
+The chip images (the v1.1 and v1.2 MSB/LSB files): the upper 16 KB of every chip is identical in both versions. In the MSB chip's upper
+half, blocks 0-55 (128 bytes each) are a smooth table, a constant per block rising from 2 to 154 (a curve, not waves); blocks 56-127 are
+72 blocks that look like waveforms; the LSB chip's upper half is near random (7.85 bits of entropy per byte, consistent with packed low
+nibbles). Those 72 blocks match none of Arturia's 95 waves: not as byte multisets (also with the data inverted or offset by 0x80), not
+as a count of ones per data line (invariant to any address and data-line permutation, inverted or not), not as normalised circular
+correlation of the top bytes (best 0.3-0.9, nothing unique). So Arturia's ROM is not a plain copy of these top bytes (resampled or
+re-quantised, or the chip packs the samples in a form not found yet). The layout remains undecoded; the WAV mapping above does not need it.
