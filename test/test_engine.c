@@ -269,6 +269,30 @@ int main(void) {
             E->get_param(h3, "patch_name", b, sizeof b);
             char res[16]; E->get_param(h3, "lpf_res", res, sizeof res);
             CHECK(!strcmp(b, "B2 P2") && atoi(res) == 66, "program and name load from the bank (%s, res %s)", b, res);
+            /* the Banks page: browse another bank without loading it, pick its programs, page through, highlights follow */
+            E->get_param(h3, "browse_bank_name", b, sizeof b);
+            CHECK(!strcmp(b, "3 My Banks B2"), "the browsed bank starts at the loaded one (%s)", b);
+            setp(h3, "browse_bank_index", 1);
+            E->get_param(h3, "patch_slot_2", b, sizeof b);
+            char pn[32]; E->get_param(h3, "patch_name", pn, sizeof pn);
+            CHECK(!strcmp(b, "002 B1 P2") && !strcmp(pn, "B2 P2"), "a browsed bank lists its names and loads nothing (%s, loaded %s)", b, pn);
+            E->get_param(h3, "bank_slot_2_on", b, sizeof b);
+            char on3[8]; E->get_param(h3, "patch_slot_2_on", on3, sizeof on3);
+            CHECK(!strcmp(b, "1") && !strcmp(on3, "0"), "bank tile highlighted, program tile not (%s, %s)", b, on3);
+            setp(h3, "patch_slot_3", 1);
+            E->get_param(h3, "bank_name", b, sizeof b);
+            E->get_param(h3, "patch_name", pn, sizeof pn);
+            E->get_param(h3, "patch_slot_3_on", on3, sizeof on3);
+            CHECK(!strcmp(b, "My Banks B1") && !strcmp(pn, "B1 P3") && !strcmp(on3, "1"), "a program tile loads bank and program (%s, %s, on %s)", b, pn, on3);
+            setp(h3, "next_browse_bank", 1);
+            E->get_param(h3, "browse_bank_name", b, sizeof b);
+            setp(h3, "patch_page_next", 1);
+            char pg[32]; E->get_param(h3, "patch_page_text", pg, sizeof pg);
+            char s1[32]; E->get_param(h3, "patch_slot_1", s1, sizeof s1);
+            CHECK(!strcmp(b, "3 My Banks B2") && !strcmp(pg, "PAGE 2/5") && !strcmp(s1, "029 Prog 29"), "bank and page steppers (%s, %s, %s)", b, pg, s1);
+            setp(h3, "browse_bank_index", 0);
+            E->get_param(h3, "patch_slot_1", b, sizeof b);
+            CHECK(!strncmp(b, "001 ", 4) && strlen(b) > 4, "the factory bank lists its names (%s)", b);
             E->destroy(h3);
             /* add the ROM pair: 95 more waves */
             char rp[2][256];

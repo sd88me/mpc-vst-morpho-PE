@@ -11,7 +11,7 @@
   seven fixed routes, the 4 x 16 sequencer with rests, resets, swing, clock modulation and the trigger modes, MIDI CCs.
 - VS waves (2026-10-07): the VS program ROM chips are decoded (68000 byte interleave; docs/FIRMWARE.md section 14) and the plugin reads the
   user's own chip images for the 95 factory waves, bit-exact against Arturia's copy. A single-cycle recording alone fills 88 slots by correlation.
-- Plugin: 219 parameters (128 program + 64 steps + host controls + popup state), an eight-tab skin in the browser renderer
+- Plugin: 278 parameters (128 program + 64 steps + host controls + popup state + the Banks page), a nine-tab skin in the browser renderer
   (`"art": "html"`, `vst/skin.css`, signal-flow drawings written by `tools/gen_layout.py`), banks from `.syx`,
   user waveshape dumps, Prophet VS wave dumps and single-cycle WAV banks, state chunk.
 - Tests: `tools/test_port.sh` passes every check but one (below); `test/test_engine.c` passes (pitch to 0.1 Hz, every built-in
@@ -52,6 +52,10 @@
   restarted, plugin listed. Bench (docs/BENCH.md): 4 voices 17 % of a block at Eco (1x), about 31 % at 2x, p99 near that; idle 3.8 %; the
   q-link sweep p99 is 131-135 % (unexplained spikes, FAIL). On-device timing of the engine alone: 4 voices 16.5 % (1x), 30 % (2x), 52 % (4x),
   about 5.7 times the x86 cost. Eco is the default of this build (`-DPE_DEFAULT_OS=1` in vst.json). Not yet done: insert/play/Q-Link tests.
+- Banks tab (2026-10-07; the layout of Profit-8's page): a 22-tile bank list and a 28-tile program list (5 pages) of the browsed bank, with the
+  steppers, Q-Links and data wheel on `browse_bank_index`, `program` and the page; names of an unloaded bank are read from its file. Offline:
+  engine tests and `test_port.sh` pass (only the known osc1_freq wheel check fails); the skin render could not be previewed here (Chromium
+  exits 127 for missing libraries), so the tab is unseen.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)

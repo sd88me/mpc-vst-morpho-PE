@@ -110,9 +110,10 @@ typedef struct {
     float waves[PE_NWAVES][PE_WLEN];
     int user_waves, rom_waves, wav_waves;   /* rom_waves: the 95 ROM waves came from the user's VS ROM images */
     bankref_t banks[MAXBANKS];
-    int nbanks, cur_bank, cur_prog;
+    int nbanks, cur_bank, cur_prog, browse_bank, browse_page, browse_valid;
     uint8_t bankdata[128][NPATCH];
     char banknames[128][17];
+    char browsenames[128][17];     /* the program names of the browsed bank (the Banks page) */
     char dir[PATHLEN];
     int display_rev;
     uint32_t rng;
@@ -344,9 +345,51 @@ static void load_bank(pe_t *s, int bi) {
         }
     }
     s->cur_bank = bi;
+    s->browse_bank = bi;
+    s->browse_valid = 0;
+    s->browse_page = 0;
+}
+#define BANK_SLOTS 22
+#define PROG_SLOTS 28
+#define PROG_PAGES ((128 + PROG_SLOTS - 1) / PROG_SLOTS)
+/* the names of the browsed bank's programs: the loaded bank's own, the factory list, or read from the bank's file */
+static void browse_names(pe_t *s) {
+    if (s->browse_valid) return;
+    int bi = clampi(s->browse_bank, 0, s->nbanks - 1);
+    if (bi == s->cur_bank) memcpy(s->browsenames, s->banknames, sizeof s->browsenames);
+    else if (bi == 0) {
+        uint8_t tmp[NPATCH];
+        for (int k = 0; k < 128; k++) {
+            s->browsenames[k][0] = 0;
+            if (k < presets_count()) { patch_init(tmp, NULL); presets_apply(k, tmp, s->browsenames[k]); }
+            else strcpy(s->browsenames[k], "-");
+        }
+    } else {
+        for (int k = 0; k < 128; k++) s->browsenames[k][0] = 0;
+        size_t len;
+        uint8_t *buf = read_file(s->banks[bi].path, &len);
+        uint8_t (*data)[NPATCH] = buf ? malloc((size_t)128 * NPATCH) : NULL;
+        if (data) {
+            loadctx_t lc = {data, s->browsenames, s->banks[bi].bank, 0, {0}};
+            syx_each(buf, len, load_cb, &lc);
+        }
+        free(data);
+        free(buf);
+        for (int k = 0; k < 128; k++) if (!s->browsenames[k][0]) snprintf(s->browsenames[k], 17, "Prog %d", k + 1);
+    }
+    s->browse_valid = 1;
+}
+static void browse_set(pe_t *s, int bank, int page) {
+    bank = clampi(bank, 0, s->nbanks - 1);
+    if (bank != s->browse_bank) s->browse_valid = 0;
+    s->browse_bank = bank;
+    s->browse_page = clampi(page, 0, PROG_PAGES - 1);
+    s->display_rev++;
 }
 static void select_program(pe_t *s, int p) {
     s->cur_prog = clampi(p, 0, 127);
+    if (s->browse_bank != s->cur_bank) { s->browse_bank = s->cur_bank; s->browse_valid = 0; }
+    s->browse_page = s->cur_prog / PROG_SLOTS;
     memcpy(s->patch, s->bankdata[s->cur_prog], NPATCH);
     snprintf(s->name, sizeof s->name, "%s", s->banknames[s->cur_prog]);
     s->display_rev++;
@@ -1105,6 +1148,7 @@ static void pe_set_param(void *h, const char *k, const char *val) {
         snprintf(s->name, sizeof s->name, "%s", nm);
         if (b >= 0 && b < s->nbanks && b != s->cur_bank) load_bank(s, b);
         s->cur_prog = clampi(p, 0, 127);
+        s->browse_page = s->cur_prog / PROG_SLOTS;
         s->display_rev++;
         return;
     }
@@ -1113,6 +1157,22 @@ static void pe_set_param(void *h, const char *k, const char *val) {
     int x = atoi(val);
     if (!strcmp(k, "bank")) { if (x != s->cur_bank && x < s->nbanks) { load_bank(s, x); select_program(s, 0); } }
     else if (!strcmp(k, "program")) { if (x != s->cur_prog) select_program(s, x); }
+    else if (!strcmp(k, "browse_bank_index")) { if (x >= 0 && x < s->nbanks && x != s->browse_bank) browse_set(s, x, 0); }
+    else if (!strcmp(k, "next_browse_bank") || !strcmp(k, "prev_browse_bank")) {
+        if (x) browse_set(s, (s->browse_bank + (k[0] == 'n' ? 1 : s->nbanks - 1)) % s->nbanks, 0);
+    } else if (!strncmp(k, "bank_slot_", 10)) {
+        int b = (s->browse_bank / BANK_SLOTS) * BANK_SLOTS + atoi(k + 10) - 1;
+        if (x && b >= 0 && b < s->nbanks) browse_set(s, b, 0);
+    } else if (!strncmp(k, "patch_slot_", 11)) {
+        int p = s->browse_page * PROG_SLOTS + atoi(k + 11) - 1;
+        if (x && p >= 0 && p < 128) {
+            if (s->browse_bank != s->cur_bank) load_bank(s, s->browse_bank);
+            select_program(s, p);
+        }
+    } else if (!strcmp(k, "patch_page_index")) { if (x >= 0 && x < PROG_PAGES) browse_set(s, s->browse_bank, x); }
+    else if (!strcmp(k, "patch_page_next") || !strcmp(k, "patch_page_prev")) {
+        if (x) browse_set(s, s->browse_bank, (s->browse_page + (k[11] == 'n' ? 1 : PROG_PAGES - 1)) % PROG_PAGES);
+    }
     else if (!strcmp(k, "seq_run")) s->seq_run = clampi(x, 0, 2);
     else if (!strcmp(k, "clock_src")) s->clock_src = clampi(x, 0, 1);
     else if (!strcmp(k, "seq_reset")) { if (x) for (int v = 0; v < s->nv; v++) seq_reset(&s->v[v].seq); }
@@ -1137,10 +1197,33 @@ static int pe_get_param(void *h, const char *k, char *b, int n) {
         snprintf(base, sizeof base, "%.*s", (int)(kl - 8), k);
         int i = find_key(base);
         if (i >= 0) return format_value(s, i, b, n);
+        if (!strcmp(base, "browse_bank_index")) return snprintf(b, (size_t)n, "%d", s->browse_bank + 1) + 1;
+        if (!strcmp(base, "patch_page_index")) return snprintf(b, (size_t)n, "%d", s->browse_page + 1) + 1;
         if (!strcmp(base, "bank")) return snprintf(b, (size_t)n, "%d %s", s->cur_bank + 1, s->banks[s->cur_bank].name) + 1;
         if (!strcmp(base, "program")) return snprintf(b, (size_t)n, "%03d %s", s->cur_prog + 1, s->banknames[s->cur_prog]) + 1;
         return 0;
     }
+    size_t kl2 = strlen(k);
+    if (kl2 > 3 && !strcmp(k + kl2 - 3, "_on")) {          /* the highlight of a tile: the browsed bank, the loaded program */
+        if (!strncmp(k, "bank_slot_", 10)) return snprintf(b, (size_t)n, "%d", (s->browse_bank / BANK_SLOTS) * BANK_SLOTS + atoi(k + 10) - 1 == s->browse_bank) + 1;
+        if (!strncmp(k, "patch_slot_", 11))
+            return snprintf(b, (size_t)n, "%d", s->browse_bank == s->cur_bank && s->browse_page * PROG_SLOTS + atoi(k + 11) - 1 == s->cur_prog) + 1;
+    }
+    if (!strncmp(k, "bank_slot_", 10)) {
+        int bk = (s->browse_bank / BANK_SLOTS) * BANK_SLOTS + atoi(k + 10) - 1;
+        return snprintf(b, (size_t)n, "%s", bk >= 0 && bk < s->nbanks ? s->banks[bk].name : "") + 1;
+    }
+    if (!strncmp(k, "patch_slot_", 11)) {
+        int p = s->browse_page * PROG_SLOTS + atoi(k + 11) - 1;
+        if (p < 0 || p >= 128) return snprintf(b, (size_t)n, "%s", "") + 1;
+        browse_names(s);
+        return snprintf(b, (size_t)n, "%03d %s", p + 1, s->browsenames[p]) + 1;
+    }
+    if (!strcmp(k, "browse_bank_index")) return snprintf(b, (size_t)n, "%d", s->browse_bank) + 1;
+    if (!strcmp(k, "browse_bank_name")) return snprintf(b, (size_t)n, "%d %s", s->browse_bank + 1, s->banks[s->browse_bank].name) + 1;
+    if (!strcmp(k, "patch_page_index")) return snprintf(b, (size_t)n, "%d", s->browse_page) + 1;
+    if (!strcmp(k, "patch_page_text")) return snprintf(b, (size_t)n, "PAGE %d/%d", s->browse_page + 1, PROG_PAGES) + 1;
+    if (!strcmp(k, "next_browse_bank") || !strcmp(k, "prev_browse_bank") || !strcmp(k, "patch_page_next") || !strcmp(k, "patch_page_prev")) return snprintf(b, (size_t)n, "0") + 1;
     int i = find_key(k);
     if (i >= 0) return snprintf(b, (size_t)n, "%d", s->patch[i]) + 1;
     if (!strcmp(k, "bank")) return snprintf(b, (size_t)n, "%d", s->cur_bank) + 1;

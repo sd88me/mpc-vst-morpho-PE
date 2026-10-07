@@ -30,7 +30,7 @@ state, the bench numbers and the open items.
 - **Keyboard:** poly, mono and unison 1/2 with the six key priorities and per-oscillator glide (normal, fingered, keyboard off).
 - **Program format:** the instrument's own 128 parameters and 64 sequencer steps, so its program, bank, edit-buffer and waveshape
   dumps load unchanged; banks of programs from `.syx` files; Prophet VS wave dumps and single-cycle WAV banks as wave sources.
-- **Plugin:** 221 parameters, an eight-tab skin and Q-Link pages, MIDI CCs, project state, a **Quality** control (analog section at
+- **Plugin:** 278 parameters, a nine-tab skin and Q-Link pages, MIDI CCs, project state, a **Quality** control (analog section at
   1x, 2x or 4x oversampling).
 
 ## Technology
@@ -50,7 +50,7 @@ state, the bench numbers and the open items.
   it, including the DSP's own behaviour where the firmware shows it: hard-clipping distortion, the noise gate, grunge as integer
   wrap-around, bit-mask output hack.
 - **Skin:** a layout file (`tools/gen_layout.py`) rendered by a headless browser (`"art": "html"`), signal-flow drawings written by
-  the generator, eight tabs, Q-Link pages per section.
+  the generator, nine tabs, Q-Link pages per section.
 
 ## How it was derived, and how close it is
 
@@ -112,8 +112,10 @@ Without any files, eight built-in programs of this project's own play on the ope
 
 ## Using it
 
-Eight tabs, grouped like the instrument's panel sections and in its signal order, with amber flow lines showing the path:
-**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **OSC** (oscillators 1-4 and noise
+Nine tabs, grouped like the instrument's panel sections and in its signal order, with amber flow lines showing the path:
+**PROGRAM** (program and bank, misc parameters, sequencer clock and run, sequence destinations), **BANKS** (every bank found in the plugin folder, and its programs, as tiles: tap a bank to browse it, tap a program to load it;
+the bank, program and page steppers, the Q-Links (bank, program, page back, page forward) and the data wheel step the same values),
+**OSC** (oscillators 1-4 and noise
 feeding the filter), **FILTER** (low pass filter into the amplifier), **FX** (high pass, tuned feedback,
 distortion, delay, output hack, voice volume), **MOD** (envelope 3 and the four LFOs), **MODS** (the four modulators and the fixed
 controller routes), **SEQ 1-2** and **SEQ 3-4** (the step sequencer, one Q-Link page per track).

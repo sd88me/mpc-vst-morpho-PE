@@ -1885,6 +1885,476 @@
     "Ultra 4x"
    ],
    "default": 1
+  },
+  {
+   "key": "browse_bank_index",
+   "name": "Browse Bank",
+   "min": 0,
+   "max": 47,
+   "default": 0,
+   "display": "int",
+   "dynamic_display": true
+  },
+  {
+   "key": "patch_page_index",
+   "name": "Program Page",
+   "min": 0,
+   "max": 4,
+   "default": 0,
+   "display": "int",
+   "dynamic_display": true
+  },
+  {
+   "key": "browse_bank_name",
+   "name": "Browse Bank Name",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_page_text",
+   "name": "Program Page Text",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "prev_browse_bank",
+   "name": "Browse Bank <",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "momentary": true,
+   "type": "trigger"
+  },
+  {
+   "key": "next_browse_bank",
+   "name": "Browse Bank >",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "momentary": true,
+   "type": "trigger"
+  },
+  {
+   "key": "patch_page_prev",
+   "name": "Page <",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "momentary": true,
+   "type": "trigger"
+  },
+  {
+   "key": "patch_page_next",
+   "name": "Page >",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "momentary": true,
+   "type": "trigger"
+  },
+  {
+   "key": "bank_slot_1",
+   "name": "Bank 1",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_2",
+   "name": "Bank 2",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_3",
+   "name": "Bank 3",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_4",
+   "name": "Bank 4",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_5",
+   "name": "Bank 5",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_6",
+   "name": "Bank 6",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_7",
+   "name": "Bank 7",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_8",
+   "name": "Bank 8",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_9",
+   "name": "Bank 9",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_10",
+   "name": "Bank 10",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_11",
+   "name": "Bank 11",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_12",
+   "name": "Bank 12",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_13",
+   "name": "Bank 13",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_14",
+   "name": "Bank 14",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_15",
+   "name": "Bank 15",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_16",
+   "name": "Bank 16",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_17",
+   "name": "Bank 17",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_18",
+   "name": "Bank 18",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_19",
+   "name": "Bank 19",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_20",
+   "name": "Bank 20",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_21",
+   "name": "Bank 21",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "bank_slot_22",
+   "name": "Bank 22",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_1",
+   "name": "Program 1",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_2",
+   "name": "Program 2",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_3",
+   "name": "Program 3",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_4",
+   "name": "Program 4",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_5",
+   "name": "Program 5",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_6",
+   "name": "Program 6",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_7",
+   "name": "Program 7",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_8",
+   "name": "Program 8",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_9",
+   "name": "Program 9",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_10",
+   "name": "Program 10",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_11",
+   "name": "Program 11",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_12",
+   "name": "Program 12",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_13",
+   "name": "Program 13",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_14",
+   "name": "Program 14",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_15",
+   "name": "Program 15",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_16",
+   "name": "Program 16",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_17",
+   "name": "Program 17",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_18",
+   "name": "Program 18",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_19",
+   "name": "Program 19",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_20",
+   "name": "Program 20",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_21",
+   "name": "Program 21",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_22",
+   "name": "Program 22",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_23",
+   "name": "Program 23",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_24",
+   "name": "Program 24",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_25",
+   "name": "Program 25",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_26",
+   "name": "Program 26",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_27",
+   "name": "Program 27",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
+  },
+  {
+   "key": "patch_slot_28",
+   "name": "Program 28",
+   "min": 0,
+   "max": 1,
+   "default": 0,
+   "display": "string"
   }
  ]
 }

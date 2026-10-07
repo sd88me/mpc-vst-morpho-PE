@@ -133,6 +133,17 @@ def main():
     qlinks("Program", ["program", "bank", "volume", "pan", "key_mode", "key_xpose", "bend_range", "voices",
                        "tempo", "clock_div", "trigger", "seq_run", "seq1_dest", "seq2_dest", "seq3_dest", "seq4_dest"])
 
+    # ---- BANKS: pick a bank (left) and a program (right); the steppers, the Q-Links and the data wheel step the same values
+    tab("BANKS")
+    emit('stepper cx=236 cy=128 w=400 h=50 label="" key=browse_bank_index prev=prev_browse_bank next=next_browse_bank get=browse_bank_name style=dotmatrix')
+    emit('stepper cx=677 cy=128 w=450 h=50 label="" key=program get=patch_name prev=program_prev next=program_next style=dotmatrix')
+    emit('stepper cx=1082 cy=128 w=324 h=50 label="" key=patch_page_index prev=patch_page_prev next=patch_page_next get=patch_page_text style=dotmatrix')
+    emit('frame x=36 y=168 w=560 h=544 title="BANKS"')
+    emit('list x=56 y=220 w=520 h=467 cols=2 rows=11 gap=6 th=37 key=bank_slot order=cols')
+    emit('frame x=612 y=168 w=632 h=544 title="PROGRAMS"')
+    emit('list x=632 y=220 w=592 h=472 cols=2 rows=14 gap=4 th=30 key=patch_slot order=cols')
+    qlinks("Banks", ["browse_bank_index", "program", "patch_page_prev", "patch_page_next"])
+
     # ---- OSC: four oscillators and noise, all into the filter
     tab("OSC")
     fl = Flow("osc")

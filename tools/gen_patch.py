@@ -94,7 +94,16 @@ EXTRA = [
 ] + [{"key": "%s_%s" % (k, d), "name": "%s %s" % (k.title(), "<" if d == "prev" else ">"), "min": 0, "max": 1, "default": 0,
       "momentary": True, "type": "trigger", "step_of": k, "step_delta": -1 if d == "prev" else 1}
      for k in ("bank", "program") for d in ("prev", "next")] + [
-    {"key": "quality", "name": "Quality", "options": ["Eco 1x", "High 2x", "Ultra 4x"], "default": 1}]
+    {"key": "quality", "name": "Quality", "options": ["Eco 1x", "High 2x", "Ultra 4x"], "default": 1},
+    # banks page (appended): the browsed bank and program page are view state; a program tile loads
+    {"key": "browse_bank_index", "name": "Browse Bank", "min": 0, "max": 47, "default": 0, "display": "int", "dynamic_display": True},
+    {"key": "patch_page_index", "name": "Program Page", "min": 0, "max": 4, "default": 0, "display": "int", "dynamic_display": True},
+    {"key": "browse_bank_name", "name": "Browse Bank Name", "min": 0, "max": 1, "default": 0, "display": "string"},
+    {"key": "patch_page_text", "name": "Program Page Text", "min": 0, "max": 1, "default": 0, "display": "string"},
+] + [{"key": k, "name": n, "min": 0, "max": 1, "default": 0, "momentary": True, "type": "trigger"}
+     for k, n in (("prev_browse_bank", "Browse Bank <"), ("next_browse_bank", "Browse Bank >"), ("patch_page_prev", "Page <"), ("patch_page_next", "Page >"))] + [
+    {"key": "bank_slot_%d" % i, "name": "Bank %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 23)] + [
+    {"key": "patch_slot_%d" % i, "name": "Program %d" % i, "min": 0, "max": 1, "default": 0, "display": "string"} for i in range(1, 29)]
 
 def params_json():
     out = []
