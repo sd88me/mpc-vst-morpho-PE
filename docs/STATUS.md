@@ -57,6 +57,10 @@
   p99 was 8 voices at Ultra 4x: since 2026-10-07 more than 4 voices run at 2x even when Ultra is chosen (p99 135 % -> 68 %). Not yet done:
   insert/play/Q-Link/Banks-tab tests; the engine is about 5.7 times the x86 cost, so the way to PASS (p99 15 %, max 50 %) is to make the voice
   cheaper, not to change the sweep.
+- CPU, output unchanged (2026-10-07): the oscillator computes only the shape in use, the filter call is unrolled for its pole count, the
+  half-band decimators keep a mirrored history (no index wrap), and the build is -O3. The render hash is identical on x86 and ARM; on the Force
+  the engine went from 15.7 to 13.6 % of a block (4 voices, Eco) and from 27.6 to 21.9 % (High). VFPv4 or Cortex-A17 tuning gained nothing,
+  so the build stays generic armv7.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)

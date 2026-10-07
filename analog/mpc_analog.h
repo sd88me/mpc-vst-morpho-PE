@@ -28,19 +28,23 @@ static inline float ma_polyblamp(float t, float dt) {
     if (t > 1 - dt) { t = (t - 1) / dt + 1; return (1.0f / 3) * t * t * t * dt; }
     return 0;
 }
-/* Band-limited ramp-core VCO sample at phase ph in [0,1), -1..1. The saw carries a little 2nd harmonic (a leaky integrator
- * capacitor); the pulse is off (0) at duty <= 0 or >= 1 and DC-free. */
-static inline float ma_osc(int shape, float ph, float inc, float duty) {
+static inline float ma_osc_saw(float ph, float inc) {
     float saw = 2 * ph - 1 - ma_polyblep(ph, inc);
+    return saw + (0.02f * (1 - saw * saw) - 0.0133f);
+}
+static inline float ma_osc_tri(float ph, float inc) {
     float t2 = ph + 0.5f;
     if (t2 >= 1) t2 -= 1;
     float tri = ph < 0.5f ? 4 * ph - 1 : 3 - 4 * ph;
-    tri += 4 * (ma_polyblamp(ph, inc) - ma_polyblamp(t2, inc));
-    saw += 0.02f * (1 - saw * saw) - 0.0133f;
+    return tri + 4 * (ma_polyblamp(ph, inc) - ma_polyblamp(t2, inc));
+}
+/* Band-limited ramp-core VCO sample at phase ph in [0,1), -1..1. The saw carries a little 2nd harmonic (a leaky integrator
+ * capacitor); the pulse is off (0) at duty <= 0 or >= 1 and DC-free. Only the shape asked for is computed. */
+static inline float ma_osc(int shape, float ph, float inc, float duty) {
     switch (shape) {
-    case MA_SAW: return saw;
-    case MA_TRI: return tri;
-    case MA_SAWTRI: return 0.5f * (saw + tri);
+    case MA_SAW: return ma_osc_saw(ph, inc);
+    case MA_TRI: return ma_osc_tri(ph, inc);
+    case MA_SAWTRI: return 0.5f * (ma_osc_saw(ph, inc) + ma_osc_tri(ph, inc));
     default: {
         if (duty <= 0.0f || duty >= 1.0f) return 0;
         float x = ph < duty ? 1.0f : -1.0f;
@@ -195,7 +199,7 @@ static inline float ma_ota_G(float hz, float fs) {
 
 /* ---- half-band decimators ---- */
 /* lowpass at fs/4 (Kaiser window): the centre tap is 0.5, even taps are zero, tap 2j+1 is c[j] on both sides; m taps per side */
-typedef struct { float z[64]; int p; } ma_hb_t;
+typedef struct { float z[128]; int p; } ma_hb_t;   /* each sample is kept twice (at q and q + 64) so the taps need no wrap */
 static inline double ma_bessel0(double x) { double s = 1, t = 1; for (int k = 1; k < 40; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; } return s; }
 static inline void ma_hb_design(float *c, int m, double beta) {
     int K = 2 * m - 1;
@@ -207,10 +211,14 @@ static inline void ma_hb_design(float *c, int m, double beta) {
 }
 /* two input samples in (oldest first), one out at half the rate */
 static inline float ma_hb_dec(ma_hb_t *h, const float *c, int m, float x0, float x1) {
-    h->z[h->p & 63] = x0; h->z[(h->p + 1) & 63] = x1; h->p += 2;
-    int K = 2 * m - 1, mid = h->p - 1 - K;
-    float y = 0.5f * h->z[mid & 63];
-    for (int j = 0; j < m; j++) y += c[j] * (h->z[(mid - 2 * j - 1) & 63] + h->z[(mid + 2 * j + 1) & 63]);
+    int q0 = h->p & 63, q1 = (h->p + 1) & 63;
+    h->z[q0] = h->z[q0 + 64] = x0;
+    h->z[q1] = h->z[q1 + 64] = x1;
+    h->p += 2;
+    int K = 2 * m - 1;
+    const float *z = h->z + 64 + q1 - K;          /* the centre tap; the newest sample is z[K], the oldest z[-K] (K <= 47) */
+    float y = 0.5f * z[0];
+    for (int j = 0; j < m; j++) y += c[j] * (z[-2 * j - 1] + z[2 * j + 1]);
     return y;
 }
 /* the sets the ports use: 4x -> 2x (6 taps, beta 6.0) and 2x -> 1x (12 taps, beta 8.6; about 70 dB down above the band) */

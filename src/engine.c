@@ -847,7 +847,9 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             float g = v->vca_prev + (v->vca - v->vca_prev) * tt;
             for (int c = 0; c < 2; c++) {
                 float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * tt + am * osc_am[c];
-                float y = ma_ota_lpf(v->lad[c], v->ladd[c], lpf_G(OS == 4 ? 2 : OS == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
+                float G = lpf_G(OS == 4 ? 2 : OS == 2 ? 1 : 0, semis);
+                /* the pole count as a constant, so each call is unrolled for its 2 or 4 stages (same arithmetic) */
+                float y = four ? ma_ota_lpf(v->lad[c], v->ladd[c], G, v->res[c], 1, in[c]) : ma_ota_lpf(v->lad[c], v->ladd[c], G, v->res[c], 0, in[c]);
                 ys[k][c] = ma_tanh(y * g * 0.8f) * 1.25f;     /* the VCA's OTA saturates softly at large levels */
             }
         }
