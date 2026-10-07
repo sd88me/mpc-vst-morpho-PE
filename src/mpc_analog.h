@@ -75,6 +75,92 @@ static inline void ma_sync(int shape, float duty, float ph_after_step, float inc
     *next_sample = 0.5f * (jump - own[shape < 3 ? shape : 3]) * (2 * d - d * d - 1);
 }
 
+/* ---- DCO pair (timer-driven ramp cores, exact sub-sample reset timing) ----
+ * For instruments whose oscillators are digitally timed (the Tempest): a ramp that resets exactly at the end of each period, shapes
+ * taken from the ramp, every jump band-limited with a 2-point polyBLEP at its exact sub-sample moment (one sample of latency), hard
+ * sync as oscillator 2's reset discharging oscillator 1, and a sub oscillator (flip-flop clocked by oscillator 1's resets). */
+typedef struct {
+    float ph[2];          /* ramp positions 0..1 */
+    int flip;             /* sub oscillator flip-flop */
+    float y[3], r[3];     /* last naive outputs (osc 1, osc 2, sub) and the BLEP residual owed to them */
+} ma_dco_t;
+typedef struct {
+    int shape;            /* 0 off, 1 saw, 2 tri, 3 saw-tri, 4 pulse, 5 flat pulse */
+    float duty, inc;
+} ma_dco_osc_t;
+/* One sample: osc 1, osc 2, sub (one sample late, band-limited). */
+/* tri from the ramp: 1 at the reset, -1 half way (continuous at a natural reset) */
+static inline float ma_dco_tri(float p) { return 2 * fabsf(2 * p - 1) - 1; }
+static inline float ma_dco_shape(const ma_dco_osc_t *o, float p) {
+    switch (o->shape) {
+    case 1: return 2 * p - 1;
+    case 2: return ma_dco_tri(p);
+    case 3: return 0.5f * (2 * p - 1 + ma_dco_tri(p));
+    case 4: return p < o->duty ? 1.0f : -1.0f;
+    default: return 0;
+    }
+}
+static inline void ma_dco_step(float h, float t, float *rp, float *rn) {
+    /* polyBLEP: the sample before the step gets +h/2 (1-s)^2 with s its distance to the step (s = 1 - t), the sample after it
+     * gets -h/2 (1-t)^2 */
+    *rp += h * 0.5f * t * t;
+    *rn -= h * 0.5f * (1 - t) * (1 - t);
+}
+
+static inline void ma_dco_tick(ma_dco_t *d, const ma_dco_osc_t *o1, const ma_dco_osc_t *o2, int sync, float out[3]) {
+    float rn[3] = {0, 0, 0};
+    /* osc 2 first: its reset may discharge osc 1 */
+    float p2 = d->ph[1] + o2->inc, t2 = -1;
+    if (o2->shape == 4 && d->ph[1] < o2->duty && p2 >= o2->duty) ma_dco_step(-2, (p2 - o2->duty) / o2->inc, &d->r[1], &rn[1]);
+    if (p2 >= 1) {
+        p2 -= 1;
+        t2 = p2 / o2->inc;          /* samples since the reset */
+        float before = ma_dco_shape(o2, 1.0f - 1e-7f), after = ma_dco_shape(o2, 0);
+        if (after != before) ma_dco_step(after - before, t2, &d->r[1], &rn[1]);
+        if (o2->shape == 4 && p2 >= o2->duty) ma_dco_step(-2, (p2 - o2->duty) / o2->inc, &d->r[1], &rn[1]);
+    }
+    d->ph[1] = p2;
+    /* osc 1: its own reset, or osc 2's */
+    float p1 = d->ph[0] + o1->inc;
+    if (sync && t2 >= 0) {
+        float at = p1 - o1->inc * t2;              /* where osc 1 was when osc 2 reset */
+        if (at >= 1) {                             /* it reset on its own first */
+            at -= 1;
+            float tn = (p1 - 1) / o1->inc;
+            float jb = ma_dco_shape(o1, 0) - ma_dco_shape(o1, 1.0f - 1e-7f);
+            if (jb != 0) ma_dco_step(jb, tn, &d->r[0], &rn[0]);
+            ma_dco_step(d->flip ? -2.0f : 2.0f, tn, &d->r[2], &rn[2]);
+            d->flip ^= 1;
+        } else if (o1->shape == 4 && d->ph[0] < o1->duty && at >= o1->duty)
+            ma_dco_step(-2, t2 + (at - o1->duty) / o1->inc, &d->r[0], &rn[0]);
+        float j = ma_dco_shape(o1, 0) - ma_dco_shape(o1, at);
+        if (j != 0) ma_dco_step(j, t2, &d->r[0], &rn[0]);
+        ma_dco_step(d->flip ? -2.0f : 2.0f, t2, &d->r[2], &rn[2]);
+        d->flip ^= 1;
+        p1 = o1->inc * t2;
+        if (o1->shape == 4 && p1 >= o1->duty) ma_dco_step(-2, (p1 - o1->duty) / o1->inc, &d->r[0], &rn[0]);
+    } else {
+        if (o1->shape == 4 && d->ph[0] < o1->duty && p1 >= o1->duty) ma_dco_step(-2, (p1 - o1->duty) / o1->inc, &d->r[0], &rn[0]);
+        if (p1 >= 1) {
+            p1 -= 1;
+            float t1 = p1 / o1->inc;
+            float jb = ma_dco_shape(o1, 0) - ma_dco_shape(o1, 1.0f - 1e-7f);
+            if (jb != 0) ma_dco_step(jb, t1, &d->r[0], &rn[0]);
+            ma_dco_step(d->flip ? -2.0f : 2.0f, t1, &d->r[2], &rn[2]);
+            d->flip ^= 1;
+            if (o1->shape == 4 && p1 >= o1->duty) ma_dco_step(-2, (p1 - o1->duty) / o1->inc, &d->r[0], &rn[0]);
+        }
+    }
+    d->ph[0] = p1;
+    /* emit the previous sample with its corrections, keep this one */
+    float now[3] = {ma_dco_shape(o1, p1), ma_dco_shape(o2, p2), d->flip ? 1.0f : -1.0f};
+    for (int k = 0; k < 3; k++) {
+        out[k] = d->y[k] + d->r[k];
+        d->y[k] = now[k];
+        d->r[k] = rn[k];
+    }
+}
+
 /* ---- OTA-cascade lowpass ---- */
 /* st[4]: integrator states, nl[4]: per-stage limiting; G0 = g/(1+g), g = tan(pi f/fs); k: feedback (self-oscillates from about 4
  * in 4-pole mode, never in 2-pole). Returns the output of the last stage. */
@@ -131,5 +217,29 @@ static inline float ma_hb_dec(ma_hb_t *h, const float *c, int m, float x0, float
 #define MA_HB_A_M 6
 #define MA_HB_B_M 12
 static inline void ma_hb_design_standard(float a[MA_HB_A_M], float b[MA_HB_B_M]) { ma_hb_design(a, MA_HB_A_M, 6.0); ma_hb_design(b, MA_HB_B_M, 8.6); }
+
+/* Ready-made 2x-oversampled filter for ports that run at the host rate (no oversampling of their own): two inner steps at 2 fs, the
+ * cutoff interpolated across the sample (G is computed once per sample, the middle one is the mean of this and the last), decimated by
+ * the standard 2x -> 1x half-band (hb_b from ma_hb_design_standard). Zero it to reset. res is 0..1: four-pole feedback k = 4.6 res
+ * (self-oscillates near the top), two-pole k = 1.2 res (never does). The gate-leak and noise-floor tricks are the caller's
+ * (st[0] += x, noise added to the input). */
+typedef struct { float st[4], nl[4]; ma_hb_t hb; float Gp; } ma_ota2x_t;
+static inline float ma_ota2x(ma_ota2x_t *f, const float *hb_b, float in, float hz, float res, int four, float fs) {
+    float k = four ? 4.6f * res : 1.2f * res, y[2];
+    /* the stages' limiting lowers the self-oscillation pitch by about 1.15 semitones at low cutoffs, less towards the top (measured at
+     * 65-14900 Hz): raise the cutoff to compensate, in proportion to res^4 (the amplitude, so the limiting, grows with it) */
+    float comp = 1;
+    if (four && res > 0.4f) {
+        float r2 = res * res;
+        comp = 1 + 0.0578f * 1.15f * r2 * r2 * (1 - sqrtf(hz * (1.0f / 16000)));
+        if (comp < 1) comp = 1;
+    }
+    float G = ma_ota_G(comp * hz, 2 * fs);
+    if (f->Gp == 0) f->Gp = G;
+    y[0] = ma_ota_lpf(f->st, f->nl, 0.5f * (f->Gp + G), k, four, in);
+    y[1] = ma_ota_lpf(f->st, f->nl, G, k, four, in);
+    f->Gp = G;
+    return ma_hb_dec(&f->hb, hb_b, MA_HB_B_M, y[0], y[1]);
+}
 
 #endif
