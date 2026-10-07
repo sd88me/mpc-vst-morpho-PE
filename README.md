@@ -69,15 +69,16 @@ documented with its numbers in [docs/FIRMWARE.md](docs/FIRMWARE.md); the tools r
 | Glide, Env 3 delay | Voice-CPU tables and timer | Exact in shape; times assume a 40 MHz clock (not in the file) |
 | Unison detune (-1/+1/-3/+3 and -3/+3/-8/+8 cents) | Main-CPU table | Exact |
 | Oscillator 1/2, lowpass and VCA sound | Circuit-style models from the literature | **Modelled, not measured** |
-| Digital waves | The VS single-cycle recording you supply | Only waves 82-92 are placed with certainty |
+| Digital waves | The VS single-cycle recording you supply | Cycles 0-86 matched to the VS ROM waves by correlation (0.95-1.00); 7 slots not in the recording |
 
 ## What is missing
 
 - **The analog character is a model.** The real oscillators, filter and VCA are calibrated analog circuits; their exact
   cutoff-to-Hz curve, resonance and self-oscillation level, drive, drift, left/right differences and VCA response need
   recordings of a real instrument. The OTA limiting levels were set so the filter is clean at normal levels and self-oscillates near 0.5 (compared with OB-Xd), not measured on the instrument.
-- **The original's waves are not included** and could not be decoded from the Prophet VS ROM images; only the VS wave order for
-  Evolver waves 82-92 is known in the single-cycle WAV. The rest load in file order (docs/FIRMWARE.md section 13).
+- **The original's waves are not included** and could not be decoded from the Prophet VS ROM images; the Morphagene-collection WAV's
+  cycles 0-86 were matched to the VS ROM waves (Arturia's wave ROM, kept local) and each goes to its slot; the recording has no cycle for
+  waves 1, 3, 15, 25, 27, 55 and 95 (cycle 91 supplies wave 2), which keep stand-ins (docs/FIRMWARE.md sections 13-14).
 - **Removed:** the external audio input. Its parameters stay in the program (so dumps load and re-save intact, marked "unused") but
   it has no controls, no sound and no peak / envelope-follower sources; the Ext In trigger modes act like their keyboard counterparts.
 - **Not modelled:** distortion and highpass
@@ -102,7 +103,7 @@ The plugin makes a folder called `SYSEX` inside its own folder on first load. Pu
   - **Prophet VS wave dumps** (`F0 01 0A 7F`, a VS's 32 RAM waves): they become waves 97-128, the slots the Evolver keeps
     for user waves (the VS's own user waves were 0-31).
   - **Single-cycle WAV banks** (16/24/32-bit or float): one cycle per span between cue points (or every 128 samples without
-    cues), resampled to 128 points, filling waves 1-95 in order (cycles 74-84 go to their known slots 82-92). A recording includes the instrument's output stage, so it
+    cues), resampled to 128 points, each cycle going to the slot it was matched to (cycles 0-86, plus 91; docs/FIRMWARE.md section 14). A recording includes the instrument's output stage, so it
     is close to the original data, not identical.
 
 Without any files, eight built-in programs of this project's own play on the open waves.

@@ -227,3 +227,8 @@ nibbles). Those 72 blocks match none of Arturia's 95 waves: not as byte multiset
 as a count of ones per data line (invariant to any address and data-line permutation, inverted or not), not as normalised circular
 correlation of the top bytes (best 0.3-0.9, nothing unique). So Arturia's ROM is not a plain copy of these top bytes (resampled or
 re-quantised, or the chip packs the samples in a form not found yet). The layout remains undecoded; the WAV mapping above does not need it.
+
+Loader (src/engine.c, `scan_dir`): cycle k goes to wave slot k + 3 (k <= 10), k + 4 (11-19), 25 (k = 20), k + 6 (21-47), k + 7 (48-86),
+all 0-based; cycle 91 goes to slot 1. The formula agrees with the best match of all 87 cycles (score at least 0.95 at 20 harmonics).
+Slots with no cycle (0-based 0, 2, 14, 24, 26, 54 and 94) keep their stand-ins. The file is the Morphagene collection (its metadata:
+REAPER, 2019), so it is a capture of the waves, not the ROM data itself.

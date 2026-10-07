@@ -254,13 +254,17 @@ static void scan_dir(pe_t *s, const char *dir) {
         uint8_t *buf = read_file(path, &len);
         size_t nl = strlen(names[i]);
         if (buf && !strcasecmp(names[i] + nl - 4, ".wav")) {
-            /* single-cycle waves of a Prophet VS recording: in order from wave 1 (the 95 ROM slots), leaving the user waves 97-128
-             * alone, except cycles 74-84, whose waves are known (Evolver 82-92: bell partials, saw 3rd and 5th, the sine / saw / square
-             * pairs; docs/FIRMWARE.md section 5). The rest of the recording's order is not known yet. */
+            /* single-cycle waves of a Prophet VS recording (the Morphagene collection, 104 cycles): cycles 0-86 are the 95 ROM waves in
+             * order with some left out, so each goes to its own slot (docs/FIRMWARE.md section 14); cycle 91 is wave 2 and the others
+             * (repeats and waves that are not in the ROM) are not used. Slots the recording leaves out keep their stand-ins; the user
+             * waves 97-128 are left alone. */
             float (*tmp)[PE_WLEN] = malloc(sizeof(float) * 128 * PE_WLEN);
             int got = tmp ? waves_from_wav(buf, len, tmp, 128) : 0;
-            for (int k = 0; k < got && k < 95; k++) memcpy(s->waves[k], tmp[k], sizeof tmp[k]);
-            for (int k = 74; k <= 84 && k < got; k++) memcpy(s->waves[k + 7], tmp[k], sizeof tmp[k]);
+            for (int k = 0; k < got && k < 87; k++) {
+                int slot = k + (k <= 10 ? 3 : k <= 19 ? 4 : k == 20 ? 5 : k <= 47 ? 6 : 7);
+                memcpy(s->waves[slot], tmp[k], sizeof tmp[k]);
+            }
+            if (got > 91) memcpy(s->waves[1], tmp[91], sizeof tmp[91]);
             s->user_waves += got;
             free(tmp);
             free(buf);
