@@ -31,7 +31,7 @@ state, the bench numbers and the open items.
 - **Program format:** the instrument's own 128 parameters and 64 sequencer steps, so its program, bank, edit-buffer and waveshape
   dumps load unchanged; banks of programs from `.syx` files; Prophet VS wave dumps and single-cycle WAV banks as wave sources.
 - **Plugin:** 278 parameters, a nine-tab skin and Q-Link pages, MIDI CCs, project state, a **Quality** control (analog section at
-  1x, 2x or 4x oversampling).
+  1x, 2x or 4x oversampling; Ultra 4x runs at 2x above 4 voices, to stay inside the Force's CPU budget).
 
 ## Technology
 

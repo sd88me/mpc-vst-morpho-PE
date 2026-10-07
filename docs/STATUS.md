@@ -49,13 +49,14 @@
   trigger modes act like their keyboard counterparts and the input sources read zero.
 - Sequencer MIDI-out destinations (notes, velocity, controllers) are ignored: MPC does not take MIDI from a VST.
 - Device (Force, 2026-10-07): deployed to /sdcard/Synths/sd88me - VST - Morpho-PE (settings backup MPC.settings.bak-sync-20261006-195200), MPC
-  restarted, plugin listed. Bench (docs/BENCH.md): 4 voices 17 % of a block at Eco (1x), about 31 % at 2x, p99 near that; idle 3.8 %; the
-  q-link sweep p99 is 131-135 % (unexplained spikes, FAIL). On-device timing of the engine alone: 4 voices 16.5 % (1x), 30 % (2x), 52 % (4x),
-  about 5.7 times the x86 cost. Eco is the default of this build (`-DPE_DEFAULT_OS=1` in vst.json). Not yet done: insert/play/Q-Link tests.
-- Banks tab (2026-10-07; the layout of Profit-8's page): a 22-tile bank list and a 28-tile program list (5 pages) of the browsed bank, with the
-  steppers, Q-Links and data wheel on `browse_bank_index`, `program` and the page; names of an unloaded bank are read from its file. Offline:
-  engine tests and `test_port.sh` pass (only the known osc1_freq wheel check fails); the skin render could not be previewed here (Chromium
-  exits 127 for missing libraries), so the tab is unseen.
+  restarted, plugin listed. Current build (md5 6f907e66f658e37eef12e72731c203c2, Eco 1x default, `-DPE_DEFAULT_OS=1`) on `tools/bench.sh`
+  (4 voices by default): idle 4.0 %, 1-16 held notes 15-17 % mean, p99 19 %, max 20 % (WARN class: p99 above 15 %); q-link sweep mean 38.5 %,
+  p99 68 %, max 75 %; release tail mean 64 %, p99 67 %; verdict FAIL (the sweep and tail). The sweep sets random parameters, including Quality
+  and Voices, and the tail then runs whatever the sweep left: on-device timing of the engine alone is 16 / 28 / 50 % of a block for 4 voices at
+  1x / 2x / 4x and 32 / 57 / 101 % for 8 voices, so the tail (64 %) is 8 voices at 2x, not a denormal slowdown. The earlier 131-135 % sweep
+  p99 was 8 voices at Ultra 4x: since 2026-10-07 more than 4 voices run at 2x even when Ultra is chosen (p99 135 % -> 68 %). Not yet done:
+  insert/play/Q-Link/Banks-tab tests; the engine is about 5.7 times the x86 cost, so the way to PASS (p99 15 %, max 50 %) is to make the voice
+  cheaper, not to change the sweep.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)

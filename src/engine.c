@@ -789,7 +789,9 @@ static float wave_read(const float *w, float ph) {
 /* One voice, CTL samples, added into out[] (stereo float). */
 static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
     float am = P(s, P_LPF_AUDIOMOD) * 0.48f;         /* audio mod: semitones of cutoff per unit of oscillator */
-    const int OS = s->os;
+    /* Ultra (4x) costs about 50 % of a block on the Force with 4 voices and 100 % with 8 (docs/BENCH.md), so more than 4 voices run at 2x;
+     * the voice count only changes with all voices off, so the switch never lands in a held note */
+    const int OS = (s->os == 4 && s->nv > 4) ? 2 : s->os;
     int four = P(s, P_POLES), grunge = P(s, P_GRUNGE), sync = P(s, P_SYNC);
     float vol = P(s, P_VOLUME) / 100.0f;
     const float *w3 = s->waves[v->wave[0]], *w4 = s->waves[v->wave[1]];
@@ -845,7 +847,7 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
             float g = v->vca_prev + (v->vca - v->vca_prev) * tt;
             for (int c = 0; c < 2; c++) {
                 float semis = v->cut_prev[c] + (v->cut[c] - v->cut_prev[c]) * tt + am * osc_am[c];
-                float y = ma_ota_lpf(v->lad[c], v->ladd[c], lpf_G(s->os == 4 ? 2 : s->os == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
+                float y = ma_ota_lpf(v->lad[c], v->ladd[c], lpf_G(OS == 4 ? 2 : OS == 2 ? 1 : 0, semis), v->res[c], four, in[c]);
                 ys[k][c] = ma_tanh(y * g * 0.8f) * 1.25f;     /* the VCA's OTA saturates softly at large levels */
             }
         }
