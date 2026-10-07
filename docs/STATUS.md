@@ -68,7 +68,7 @@
   read from its file. Every destination and the modulator sources are popup pickers (options in groups, same indices and 0..1 values as the old
   knobs, so saved projects load unchanged); a sequence is one panel of 16 steps; the wordmark is new lettering with an abstract butterfly as the
   first o. The skin is 421 files / 13 MB because identical picker options share their images (a change to tools/shadow_skin.py in
-  mpc-vst-plugins, branch shared-popup-images, not merged; without it 3001 files / 23 MB, which loaded fine on the Force). On the Force the
+  mpc-vst-plugins, PR #220, not merged yet: a release built from CI before it is merged gets 3001 files / 23 MB instead, which loaded fine on the Force). On the Force the
   Banks tab lists the user's factory banks (PolyKey_Programs_Combos B1-B4) with names, the Program tab shows "5 banks, 127 waves loaded", the
   pickers show their names, and the tabs render as in the offline previews. Not yet tried: tapping tiles, the pickers and the data wheel.
 - Level (2026-10-07): the factory banks' programs rendered at a spread of peaks from -24 to 0 dBFS (median -12 dB at 0.35 master gain: 9 dB of headroom for
