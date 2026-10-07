@@ -209,7 +209,7 @@ cycles ("3rd and 5th, no fundamental" and "heavy 7th" do not fall where it predi
 (wave 95), and cycles 0 and 92 look alike, so the recording has an order or extras not yet understood. The Prophet VS ROM images (v1.1
 and v1.2, a high and a low byte chip): each 32 KB chip is 16 KB of code (different between versions) and 16 KB identical in both (128 blocks
 of 128 bytes; block 255 is random bytes, so it is the noise wave 127); the waves in them are not stored as plain consecutive 16-bit samples
-(no permutation of the sample address makes them smooth) and could not be decoded.
+(no permutation of the sample address makes them smooth) and could not be decoded that way; read as the 68000 sees them (the two chips byte-interleaved) they decode completely, section 14.
 
 ## 14. The VS ROM chips against Arturia's wave ROM (2026-10-07, user-supplied files kept local)
 
@@ -220,13 +220,25 @@ increasing order (0-based index j = cycle + 3 up to cycle 10, then cycle + 4 to 
 24, 26, 54 and 94), mostly 0.95-1.00, a few bright ones 0.76-0.92; cycles 74-84 land on j = 81-91, i.e. Evolver wave j + 1 = 82-92, as
 section 13 found. Cycles 87-103 are not in order: some repeat ROM waves (91 is j = 1; 92-95 are 3, 5, 6, 7) and some match nothing well.
 
-The chip images (the v1.1 and v1.2 MSB/LSB files): the upper 16 KB of every chip is identical in both versions. In the MSB chip's upper
-half, blocks 0-55 (128 bytes each) are a smooth table, a constant per block rising from 2 to 154 (a curve, not waves); blocks 56-127 are
-72 blocks that look like waveforms; the LSB chip's upper half is near random (7.85 bits of entropy per byte, consistent with packed low
-nibbles). Those 72 blocks match none of Arturia's 95 waves: not as byte multisets (also with the data inverted or offset by 0x80), not
-as a count of ones per data line (invariant to any address and data-line permutation, inverted or not), not as normalised circular
-correlation of the top bytes (best 0.3-0.9, nothing unique). So Arturia's ROM is not a plain copy of these top bytes (resampled or
-re-quantised, or the chip packs the samples in a form not found yet). The layout remains undecoded; the WAV mapping above does not need it.
+**The VS program ROM chips, decoded (2026-10-07).** The VS has a 68000 with two 27256 EPROMs (32 KB each) on a 16-bit bus: the "MSB"
+chip holds the even bytes and the "LSB" chip the odd bytes. Earlier attempts read each chip alone or as 16-bit samples; read as one
+byte stream from the upper 16 KB of both chips (chip offset 0x4000 onwards, identical in v1.1 and v1.2), the layout is:
+
+| Stream bytes | Contents |
+|---|---|
+| 0-14527 | 7264 big-endian 16-bit words rising from 0x028C to 0xFFFF (ratio about 1.8 every 1024 words: an exponential table, likely pitch) |
+| 14528-32767 | 95 waves of 192 bytes: 128 signed (two's complement) high bytes, then 64 bytes of low nibbles, the even sample in the high nibble |
+
+So each sample is 12 bits (high byte x 16 + nibble); the first wave is a cosine starting at 2047. All 95 waves equal Arturia's
+`waverom.bin` bit for bit (both chip versions), and ROM wave j is Evolver wave j + 1, VS wave j + 33 (the noise wave is the last, VS 127).
+It is the same 192-byte layout as the VS wave dump except that the dump's high bytes are offset binary; the ROM settles the dump's nibble
+order (even sample high), which `waves_from_vs_dump` already used.
+
+The plugin reads the user's own chip images (`waves_from_vs_rom` in src/waves.c): `.bin` or `.rom` files of 16 KB (the upper half), 32 KB
+(a whole chip) or 64 KB (one interleaved image) in the plugin folder or its SYSEX folder. Pairs are tried in both orders and accepted only
+if the table rises over all 7264 words to 0xFFFF and on more than 4000 steps (one chip given twice rises only about 150 times). The 95
+waves fill slots 1-95 and take precedence over a single-cycle recording. Wave 96 (Evolver-only) and 97-128 are not in the VS ROM.
+Nothing from the chips is in this repository.
 
 Loader (src/engine.c, `scan_dir`): cycle k goes to wave slot k + 3 (k <= 10), k + 4 (11-19), 25 (k = 20), k + 6 (21-47), k + 7 (48-86),
 all 0-based; cycle 91 goes to slot 1. The formula agrees with the best match of all 87 cycles (score at least 0.95 at 20 harmonics).

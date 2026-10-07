@@ -216,6 +216,29 @@ int main(void) {
         #undef PUT16
     }
 
+    /* Prophet VS program ROM images: a made-up pair with the layout (a rising 16-bit table of 7264 words, then 95 waves of 128
+     * signed high bytes and 64 bytes of low nibbles, read as one stream with the high chip at even bytes from the upper 16 KB) */
+    static uint8_t vhi[32768], vlo[32768];
+    {
+        #define VSPUT(i, x) do { int i_ = (i); (i_ & 1 ? vlo : vhi)[16384 + (i_ >> 1)] = (uint8_t)(x); } while (0)
+        for (int k = 0; k < 7264; k++) { int w = k < 7263 ? 0x0300 + 8 * k : 0xFFFF; VSPUT(2 * k, w >> 8); VSPUT(2 * k + 1, w & 255); }
+        for (int w = 0; w < 95; w++)
+            for (int k = 0; k < 128; k++) {
+                int v = 30 * k - 1950 + w, base = 14528 + 192 * w;
+                VSPUT(base + k, (v >> 4) & 255);
+                int nb = base + 128 + k / 2;
+                uint8_t *cell = &(nb & 1 ? vlo : vhi)[16384 + (nb >> 1)];
+                *cell = (uint8_t)((k & 1) ? ((*cell & 0xF0) | (v & 15)) : ((v & 15) << 4 | (*cell & 15)));
+            }
+        #undef VSPUT
+        static float vr[95][PE_WLEN];
+        int n1 = waves_from_vs_rom(vlo, sizeof vlo, vhi, sizeof vhi, vr);
+        CHECK(n1 == 95 && fabsf(vr[0][0] + 1950 / 2048.0f) < 1e-6f && fabsf(vr[94][127] - (30 * 127 - 1950 + 94) / 2048.0f) < 1e-6f,
+              "VS ROM chip pair decodes in either order (%d, %.4f %.4f)", n1, vr[0][0], vr[94][127]);
+        CHECK(waves_from_vs_rom(vhi, sizeof vhi, vhi, sizeof vhi, vr) == 0 && waves_from_vs_rom(vlo, 1000, vhi, sizeof vhi, vr) == 0,
+              "VS ROM check refuses one chip twice and a wrong size");
+    }
+
     /* a folder of .syx files: two banks of programs and a waveshape become banks and a user wave */
     {
         char dir[] = "/tmp/pe_test_XXXXXX";
@@ -247,6 +270,17 @@ int main(void) {
             char res[16]; E->get_param(h3, "lpf_res", res, sizeof res);
             CHECK(!strcmp(b, "B2 P2") && atoi(res) == 66, "program and name load from the bank (%s, res %s)", b, res);
             E->destroy(h3);
+            /* add the ROM pair: 95 more waves */
+            char rp[2][256];
+            for (int c = 0; c < 2; c++) {
+                snprintf(rp[c], sizeof rp[c], "%s/vs_%s.bin", dir, c ? "lo" : "hi");
+                FILE *rf = fopen(rp[c], "wb"); fwrite(c ? vlo : vhi, 1, 32768, rf); fclose(rf);
+            }
+            h3 = E->create(dir);
+            E->get_param(h3, "status", b, sizeof b);
+            CHECK(!strcmp(b, "3 banks, 96 waves loaded"), "folder scan reads the VS ROM chip pair (%s)", b);
+            E->destroy(h3);
+            remove(rp[0]); remove(rp[1]);
             remove(path);
             snprintf(path, sizeof path, "%s/SYSEX", dir); rmdir(path);
             rmdir(dir);

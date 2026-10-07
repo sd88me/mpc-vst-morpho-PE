@@ -108,7 +108,7 @@ typedef struct {
     float host_bpm;
     int seq_run, clock_src, transport;
     float waves[PE_NWAVES][PE_WLEN];
-    int user_waves;
+    int user_waves, rom_waves, wav_waves;   /* rom_waves: the 95 ROM waves came from the user's VS ROM images */
     bankref_t banks[MAXBANKS];
     int nbanks, cur_bank, cur_prog;
     uint8_t bankdata[128][NPATCH];
@@ -243,16 +243,26 @@ static void scan_dir(pe_t *s, const char *dir) {
     struct dirent *e;
     while ((e = readdir(d)) && n < 256) {
         size_t l = strlen(e->d_name);
-        if (l > 4 && (!strcasecmp(e->d_name + l - 4, ".syx") || !strcasecmp(e->d_name + l - 4, ".wav"))) names[n++] = strdup(e->d_name);
+        if (l > 4 && (!strcasecmp(e->d_name + l - 4, ".syx") || !strcasecmp(e->d_name + l - 4, ".wav") ||
+                      !strcasecmp(e->d_name + l - 4, ".bin") || !strcasecmp(e->d_name + l - 4, ".rom"))) names[n++] = strdup(e->d_name);
     }
     closedir(d);
     qsort(names, (size_t)n, sizeof names[0], cmpstr);
+    uint8_t *rom[8];                     /* Prophet VS program ROM images, paired up after the scan */
+    size_t romlen[8];
+    int nrom = 0;
     for (int i = 0; i < n; i++) {
         char path[PATHLEN];
         snprintf(path, sizeof path, "%s/%s", dir, names[i]);
         size_t len;
         uint8_t *buf = read_file(path, &len);
         size_t nl = strlen(names[i]);
+        if (buf && (!strcasecmp(names[i] + nl - 4, ".bin") || !strcasecmp(names[i] + nl - 4, ".rom"))) {
+            if ((len == 16384 || len == 32768 || len == 65536) && nrom < 8) { rom[nrom] = buf; romlen[nrom++] = len; }
+            else free(buf);
+            buf = NULL;
+        }
+        if (buf && !strcasecmp(names[i] + nl - 4, ".wav") && s->rom_waves) { free(buf); buf = NULL; }   /* the ROM's own waves win */
         if (buf && !strcasecmp(names[i] + nl - 4, ".wav")) {
             /* single-cycle waves of a Prophet VS recording (the Morphagene collection, 104 cycles): cycles 0-86 are the 95 ROM waves in
              * order with some left out, so each goes to its own slot (docs/FIRMWARE.md section 14); cycle 91 is wave 2 and the others
@@ -265,7 +275,9 @@ static void scan_dir(pe_t *s, const char *dir) {
                 memcpy(s->waves[slot], tmp[k], sizeof tmp[k]);
             }
             if (got > 91) memcpy(s->waves[1], tmp[91], sizeof tmp[91]);
-            s->user_waves += got;
+            int placed = (got < 87 ? got : 87) + (got > 91);
+            s->user_waves += placed;
+            s->wav_waves += placed;
             free(tmp);
             free(buf);
             buf = NULL;
@@ -299,6 +311,18 @@ static void scan_dir(pe_t *s, const char *dir) {
         }
         free(names[i]);
     }
+    /* the VS's 95 ROM waves from its program ROM: a high/low chip pair in either order, or one interleaved image (slots 1-95) */
+    float (*vw)[PE_WLEN] = nrom ? malloc(sizeof(float) * 95 * PE_WLEN) : NULL;
+    for (int a = 0; vw && a < nrom && !s->rom_waves; a++)
+        for (int b = a; b < nrom && !s->rom_waves; b++)
+            if (waves_from_vs_rom(rom[a], romlen[a], a == b ? NULL : rom[b], romlen[b], vw) == 95) {
+                memcpy(s->waves[0], vw, sizeof(float) * 95 * PE_WLEN);
+                s->rom_waves = 1;
+                s->user_waves += 95 - s->wav_waves;   /* replaces any recording's waves */
+                s->wav_waves = 0;
+            }
+    free(vw);
+    for (int a = 0; a < nrom; a++) free(rom[a]);
 }
 static void load_bank(pe_t *s, int bi) {
     bi = clampi(bi, 0, s->nbanks - 1);

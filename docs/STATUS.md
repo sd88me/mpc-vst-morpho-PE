@@ -9,7 +9,8 @@
   feedback with grunge, 4-pole highpass, distortion with noise gate, three-tap delay with both feedback paths and synced times,
   output hack, three envelopes (env 3 with delay), four LFOs (synced rates, key sync above 100), four mod slots and the
   seven fixed routes, the 4 x 16 sequencer with rests, resets, swing, clock modulation and the trigger modes, MIDI CCs.
-- VS single-cycle WAV (2026-10-07): cycles 0-86 and 91 are placed in the slots they matched in Arturia's wave ROM (docs/FIRMWARE.md section 14).
+- VS waves (2026-10-07): the VS program ROM chips are decoded (68000 byte interleave; docs/FIRMWARE.md section 14) and the plugin reads the
+  user's own chip images for the 95 factory waves, bit-exact against Arturia's copy. A single-cycle recording alone fills 88 slots by correlation.
 - Plugin: 219 parameters (128 program + 64 steps + host controls + popup state), an eight-tab skin in the browser renderer
   (`"art": "html"`, `vst/skin.css`, signal-flow drawings written by `tools/gen_layout.py`), banks from `.syx`,
   user waveshape dumps, Prophet VS wave dumps and single-cycle WAV banks, state chunk.
