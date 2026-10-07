@@ -7,13 +7,17 @@ three-tap delay and output hack, three envelopes, four LFOs, the modulation slot
 sequencer with its trigger modes. Its program is the instrument's own 128 parameters and 64 sequencer steps, so Poly Evolver and
 Evolver program dumps load as they are.
 
+![Morpho-PE on a Force: the Program tab](docs/img/morpho-pe.png)
+
 *The name: the Blue Morpho is an iridescent blue butterfly, and to morph is to change form, as the instrument's sounds do.
 Morpho-PE is an independent project, not affiliated with or endorsed by Dave Smith Instruments or Sequential. The PE in the
 name is a nod to the instrument it is modelled on.*
 
-**Status: development build.** It builds, passes the offline host test and its own engine tests, and has been installed and
-CPU-benched on a Force (it is not yet fully tested by ear on the device). See [docs/STATUS.md](docs/STATUS.md) for the current
-state, the bench numbers and the open items.
+**Status: version 1.0.** It builds, passes the offline host test and its own engine tests, and has been installed, played and
+CPU-benched on a Force. The analog section is a model, not a measurement of the instrument (see "What is missing"), and the CPU bench
+reports FAIL by its stress thresholds: normal playing uses 13-17 % of a block on a Force at the default Eco quality (4 voices), the
+Q-Link-sweep stress test peaks at about 56 % at p99. See [docs/STATUS.md](docs/STATUS.md) for the current state, the bench numbers
+and the open items.
 
 ## Features
 
@@ -92,23 +96,22 @@ documented with its numbers in [docs/FIRMWARE.md](docs/FIRMWARE.md); the tools r
 
 ## Your own sounds and waves
 
-The plugin makes a folder called `SYSEX` inside its own folder on first load. Put `.syx` files there (or next to the plugin):
+Nothing from the instrument is shipped: no programs, no waves, no firmware. Without any files, eight built-in programs of this project's
+own play on an open set of waves. Everything below is optional and comes from files you already have; you copy them into the plugin's
+`SYSEX` folder (`/sdcard/Synths/sd88me - VST - Morpho-PE/SYSEX`, made on first load; files next to the plugin work too) and restart
+MPC, because the folder is read at start-up. Files load in name order and a later file overwrites the same slots.
 
-- **Programs:** single program dumps, bank dumps or "all banks" dumps from a Poly Evolver or Evolver. Each bank in a file becomes
-  a bank on the PROGRAM page, named after the file.
-- **Waveshapes:** the digital oscillators start with an open set of 128 waves of this project's own (wave 95 is blank and 97-128
-  repeat 1-32, as on the instrument). The original's waves are not in its firmware files and are not shipped. Three ways to
-  bring your own, all read from `SYSEX` (files load in name order; a later file overwrites the same waves):
-  - **Waveshape Data dumps** from a Poly Evolver or Evolver (manual p. 56 and 60): each dumped wave replaces its own slot.
-  - **Prophet VS wave dumps** (`F0 01 0A 7F`, a VS's 32 RAM waves): they become waves 97-128, the slots the Evolver keeps
-    for user waves (the VS's own user waves were 0-31).
-  - **Prophet VS program ROM images** (`.bin`/`.rom`: the high- and low-byte 27256 chips, 32 KB each, in either order, or their upper
-    16 KB, or one 64 KB interleaved image): the 95 factory waves, bit-exact, in slots 1-95. They take precedence over a WAV bank.
-  - **Single-cycle WAV banks** (16/24/32-bit or float): one cycle per span between cue points (or every 128 samples without
-    cues), resampled to 128 points, each cycle going to the slot it was matched to (cycles 0-86, plus 91; docs/FIRMWARE.md section 14). A recording includes the instrument's output stage, so it
-    is close to the original data, not identical.
+| You want | Put in `SYSEX` | What it is | Where you get it |
+|---|---|---|---|
+| The factory (or your own) **programs** | `.syx` program or bank dumps | One program, one bank, or an "all banks" dump of a Poly Evolver / Evolver. Each bank in a file becomes a bank on the BANKS tab, named after the file (a file of four banks, such as the PolyKey "Programs and Combos" release, shows as four) | the instrument's SysEx dump, or the manufacturer's download page |
+| The factory **waves** (1-95), exact | two `.bin` or `.rom` files: the Prophet VS's high-byte and low-byte program ROM chips | 27256 EPROM images, 32 KB each (or their upper 16 KB, or one 64 KB interleaved image); the order of the two files does not matter | your own dump of a Prophet VS's ROM chips (any version) |
+| The same waves, **approximately** | one single-cycle `.wav` of the VS waves | 104 cycles marked by cue points, 16/24/32-bit or float; each cycle goes to the slot it was matched to (cycles 0-86 and 91). It is a recording, so close to the data, not identical; the ROM images win if both are present | a "Prophet VS waves, single cycles" collection |
+| Your own **waves** | `.syx` Waveshape Data dumps | each dumped wave replaces its own slot (manual p. 56 and 60) | "Request Waveshape Dump" on a Poly Evolver / Evolver |
+| The VS's 32 user waves | `.syx` Prophet VS wave dump (`F0 01 0A 7F`) | they become waves 97-128, the slots the Evolver keeps for user waves | a Prophet VS RAM wave dump |
 
-Without any files, eight built-in programs of this project's own play on the open waves.
+How to tell it worked: the Program tab's status line reads, for example, "5 banks, 127 waves loaded" (banks found, wave slots filled from
+files). The Banks tab lists every bank with its programs. Wave 96 is the Evolver's own wave and keeps a stand-in. The original's
+programs and waves are the property of their makers: use files from instruments you own.
 
 ## Using it
 
