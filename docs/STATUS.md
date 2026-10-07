@@ -63,6 +63,14 @@
   so the build stays generic armv7.
   `tools/bench.sh` on this build (md5 0b87e681a92aff4c9e30f0eeef2f1970): idle 4.2 %, held notes 13-15 % mean, p99 17 %, max 20 %; q-link sweep
   mean 32 %, p99 56 %, max 65 % (was 68 / 75); release tail mean 51 %, p99 55 % (was 64 / 67). Still FAIL by the bench's thresholds.
+- Banks tab and skin (2026-10-07): a one-column 22-tile bank list and a three-column 42-tile program list (4 pages) of the browsed bank, with the
+  steppers, Q-Links and data wheel on `browse_bank_index`, `program` and the page (the layout of Profit-8's page); names of an unloaded bank are
+  read from its file. Every destination and the modulator sources are popup pickers (options in groups, same indices and 0..1 values as the old
+  knobs, so saved projects load unchanged); a sequence is one panel of 16 steps; the wordmark is new lettering with an abstract butterfly as the
+  first o. The skin is 421 files / 13 MB because identical picker options share their images (a change to tools/shadow_skin.py in
+  mpc-vst-plugins, branch shared-popup-images, not merged; without it 3001 files / 23 MB, which loaded fine on the Force). On the Force the
+  Banks tab lists the user's factory banks (PolyKey_Programs_Combos B1-B4) with names, the Program tab shows "5 banks, 127 waves loaded", the
+  pickers show their names, and the tabs render as in the offline previews. Not yet tried: tapping tiles, the pickers and the data wheel.
 - Not run on a device: skin, Q-Links, CPU and the MPC OS 2.x shape are unchecked.
 
 ## Skin previews without Docker (2026-10-06)
