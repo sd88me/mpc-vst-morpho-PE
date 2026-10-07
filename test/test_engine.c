@@ -1,5 +1,5 @@
 /* Engine checks: every built-in program sounds, pitch is right, the sequencer plays with no key held, state and SysEx round-trip.
- *   gcc -O1 -fsanitize=address,undefined -Isrc -I../mpc-vst-plugins/wrapper -o /tmp/pe_test test/test_engine.c src/[!t]*.c -lm && /tmp/pe_test */
+ *   gcc -O1 -fsanitize=address,undefined -Isrc -Ianalog -I../mpc-vst-plugins/wrapper -o /tmp/pe_test test/test_engine.c src/[!t]*.c -lm && /tmp/pe_test */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
