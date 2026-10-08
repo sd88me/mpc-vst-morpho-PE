@@ -84,7 +84,7 @@ class Flow:
         emit('art file=images/flow_%s.svg x=0 y=92 w=1280 h=628' % self.name)
 
 def wordmark(x, y, w=300, h=96):
-    emit('art file=images/wordmark.svg x=%d y=%d w=%d h=%d' % (x, y, w, h))
+    emit('art file=images/wordmark.svg x=%d y=%d w=%d h=%d fit=contain' % (x, y, w, h))
 
 def mid(b): return b[1] + b[3] // 2
 def right(b): return b[0] + b[2]
@@ -137,7 +137,7 @@ def main():
     emit('readout style=dotmatrix cx=1065 cy=%d w=370 h=48 label="" key=status' % (Y(1) + 98))
     dests, _ = section(10, Y(3), "SEQUENCE DESTINATIONS", [[("SEQ 1", "^seq1_dest"), ("SEQ 2", "^seq2_dest"), ("SEQ 3", "^seq3_dest"),
                         ("SEQ 4", "^seq4_dest"), ("OSC 3 SHAPE", "^shapeseq3"), ("OSC 4 SHAPE", "^shapeseq4")]])
-    wordmark(880, Y(2) + 40, 380, 106)
+    wordmark(870, Y(2) + 12, 400, 144)
     qlinks("Program", ["program", "bank", "volume", "pan", "key_mode", "key_xpose", "bend_range", "voices",
                        "tempo", "clock_div", "trigger", "seq_run", "seq1_dest", "seq2_dest", "seq3_dest", "seq4_dest"])
 

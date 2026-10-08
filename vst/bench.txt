@@ -1,0 +1,1 @@
+{"plugin":"/tmp/morpho_pe.so","instrument":1,"open_ms":29.1,"p99_pct":46.0,"max_pct":53.9,"threads_pct":0.0,"verdict":"FAIL"}
