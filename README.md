@@ -70,7 +70,7 @@ documented with its numbers in [docs/FIRMWARE.md](docs/FIRMWARE.md); the tools r
 | Oscillator tuning, delay taps, LFO rates, highpass cutoffs | DSP tables | Exact (fitted formulas) |
 | Envelopes: tick rate (12 kHz), linear attack, exponential decay/release, attack curve, linear shape | DSP code, run in an ADSP-219x interpreter | Exact to the tables' precision |
 | Modulation: amount curves and depth of pitch, levels, FM/RM, pulse width, LFO, envelope rates, highpass, delay, pan, VCA, feedback | DSP code | Exact; filter-frequency depth is an estimate (56 semitones) |
-| Distortion gain and hard clip, noise gate, grunge, output hack | DSP code, interpreter | Exact |
+| Distortion gain and hard clip, noise gate, grunge, output hack's bit masks | DSP code, interpreter | Exact, except two deliberate changes: distortion output is scaled by 1/sqrt(gain^0.6) so the level stays steady as the knob turns, and the hack works on 4x the internal signal and rounds |
 | Glide, Env 3 delay | Voice-CPU tables and timer | Exact in shape; times assume a 40 MHz clock (not in the file) |
 | Unison detune (-1/+1/-3/+3 and -3/+3/-8/+8 cents) | Main-CPU table | Exact |
 | Oscillator 1/2, lowpass and VCA sound | Circuit-style models from the literature | **Modelled, not measured** |

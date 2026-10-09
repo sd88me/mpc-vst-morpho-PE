@@ -104,3 +104,4 @@ for Chromium build 1194).
 - Distortion keeps the firmware gain table and hard clip, with an output makeup of 1/sqrt(g^0.6) so the level stays roughly constant as the knob turns (not in the firmware).
 - Output hack works on 4x the signal (the mixer sits well below the 16-bit full scale) and rounds, so 11-14 are audibly crushed instead of near silence.
 - Digital waves: formant waves 4-23 are now two-peak vowels, random waves 73-94 are sparse partial stacks, so a sweep changes character.
+- Release 1.0.1 (2026-10-09): the playtest fixes above, installed on the Force and the PROGRAM and FX pages checked on screen; bench p99 45.7 %, max 52.6 %, verdict FAIL by the stress thresholds (as 1.0.0).
