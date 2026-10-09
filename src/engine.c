@@ -104,7 +104,7 @@ typedef struct {
     int nheld, pedal, deferred[128];
     int last_note, rr;
     float bend, wheel, press, breath, foot, expr, cc_vol, bright;      /* smoothed controllers */
-    float sm_cut, sm_res, sm_dist, sm_vol; int sm_init;   /* the panel knobs, smoothed (the integer steps would zipper) */
+    float sm_cut, sm_res, sm_dist, sm_vol, sm_am, sm_fb; int sm_init;   /* the panel knobs, smoothed (the integer steps would zipper) */
     float t_wheel, t_press, t_breath, t_foot, t_expr, t_bright;
     float host_bpm;
     int seq_run, clock_src, transport;
@@ -755,7 +755,7 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
 
     /* tuned feedback, highpass, distortion, delay */
     v->fblen = clampf(FS / pe_note_hz(24 + clampf(P(s, P_FB_FREQ) + d[26], 0, 48)), 2, FBLEN - 2);
-    v->fblvl = clampf(P(s, P_FB_LEVEL) + d[27], 0, 100) / 100.0f;
+    v->fblvl = clampf(s->sm_fb + d[27], 0, 100) / 100.0f;
     int hpf = P(s, P_HPF);
     v->hpv = (hpf > 0 && hpf < 100) ? clampi(hpf + (int)d[23], 1, 99) : 0;
     if (v->hpv && v->hpv != v->hp_cur) hpf_design(v, v->hpv);
@@ -792,7 +792,7 @@ static float wave_read(const float *w, float ph) {
 
 /* One voice, CTL samples, added into out[] (stereo float). */
 static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
-    float am = P(s, P_LPF_AUDIOMOD) * 0.48f;         /* audio mod: semitones of cutoff per unit of oscillator */
+    float am = s->sm_am * 0.48f;         /* audio mod: semitones of cutoff per unit of oscillator */
     /* Ultra (4x) costs about 50 % of a block on the Force with 4 voices and 100 % with 8 (docs/BENCH.md), so more than 4 voices run at 2x;
      * the voice count only changes with all voices off, so the switch never lands in a held note */
     const int OS = (s->os == 4 && s->nv > 4) ? 2 : s->os;
@@ -1074,9 +1074,10 @@ static void pe_render(void *h, int16_t *out, int frames) {
         {
             const float ks = 0.03f;      /* ~5 ms at 8-sample blocks */
             float tc = (float)P(s, P_LPF_FREQ), tr = (float)P(s, P_LPF_RES), td = (float)P(s, P_DIST), tv = (float)P(s, P_VOLUME);
-            if (!s->sm_init) { s->sm_cut = tc; s->sm_res = tr; s->sm_dist = td; s->sm_vol = tv; s->sm_init = 1; }
+            if (!s->sm_init) { s->sm_cut = tc; s->sm_res = tr; s->sm_dist = td; s->sm_vol = tv; s->sm_am = (float)P(s, P_LPF_AUDIOMOD); s->sm_fb = (float)P(s, P_FB_LEVEL); s->sm_init = 1; }
             s->sm_cut += (tc - s->sm_cut) * ks; s->sm_res += (tr - s->sm_res) * ks;
             s->sm_dist += (td - s->sm_dist) * ks; s->sm_vol += (tv - s->sm_vol) * ks;
+            s->sm_am += ((float)P(s, P_LPF_AUDIOMOD) - s->sm_am) * ks; s->sm_fb += ((float)P(s, P_FB_LEVEL) - s->sm_fb) * ks;
         }
         memset(buf, 0, sizeof buf);
         for (int i = 0; i < s->nv; i++) {
