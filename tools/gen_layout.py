@@ -124,10 +124,8 @@ def main():
     # ---- PROGRAM: the display, the misc parameters and the sequencer's controls
     tab("PROGRAM")
     emit('frame x=10 y=92 w=1260 h=146 title="PROGRAM"')
-    for x, label, key in ((20, "PROGRAM", "program"), (650, "BANK", "bank")):
-        emit('stepper style=dotmatrix cx=%d cy=190 w=280 h=48 label="%s" key=%s' % (x + 150, label, key))
-    emit('readout style=dotmatrix cx=470 cy=190 w=320 h=48 label="" key=patch_name')
-    emit('readout style=dotmatrix cx=1095 cy=190 w=320 h=48 label="" key=bank_name')
+    for x, label, key in ((20, "PROGRAM", "program"), (650, "BANK", "bank")):      # number and name in the stepper itself
+        emit('stepper style=dotmatrix cx=%d cy=190 w=600 h=48 label="%s" key=%s' % (x + 300, label, key))
     misc, _ = section(10, Y(1), "MISC PARAMETERS", [[("TRIGGER", "^trigger"), ("KEY MODE", "^key_mode"), ("KEY XPOSE", "key_xpose"),
                        ("PITCH WHEEL", "bend_range"), ("ENV SHAPE", "^env_shape"),
                        ("VOICES", "voices")]])

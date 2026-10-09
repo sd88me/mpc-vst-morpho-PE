@@ -98,3 +98,9 @@ for Chromium build 1194).
 3. Run more of the DSP (digital oscillators 3/4, the delay and feedback paths) in `tools/fw/adsp219x_sim.py` as a reference for the digital half.
 4. Recordings of a real instrument for the analog half.
 5. The catalog route (docs/CATALOG.md of mpc-vst-plugins).
+
+## 2026-10-09 playtest fixes (not yet checked on the Force)
+- Filter cutoff, resonance, distortion and volume knobs are smoothed (about 5 ms), so the integer steps no longer zipper (same in Sturm and Profit-8 for cutoff and resonance).
+- Distortion keeps the firmware gain table and hard clip, with an output makeup of 1/sqrt(g^0.6) so the level stays roughly constant as the knob turns (not in the firmware).
+- Output hack works on 4x the signal (the mixer sits well below the 16-bit full scale) and rounds, so 11-14 are audibly crushed instead of near silence.
+- Digital waves: formant waves 4-23 are now two-peak vowels, random waves 73-94 are sparse partial stacks, so a sweep changes character.

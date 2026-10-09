@@ -22,9 +22,10 @@ void waves_open(float w[PE_NWAVES][PE_WLEN]) {
         else if (k == 1) for (int h = 1; h <= 40; h++) add(x, h, 1.0f / h, 0);
         else if (k == 2) for (int h = 1; h <= 40; h += 2) add(x, h, 1.0f / h, 0);
         else if (k == 3) for (int h = 1; h <= 40; h += 2) add(x, h, 1.0f / (h * h), (h & 2) ? 3.14159265f : 0);
-        else if (k < 24) {          /* one formant peak walking up the harmonics */
-            float c = (float)(k - 2), bw = 1.5f + 0.15f * k;
-            for (int h = 1; h <= 48; h++) add(x, h, expf(-(h - c) * (h - c) / (2 * bw * bw)) + 0.15f / h, 0);
+        else if (k < 24) {          /* two formant peaks (vowel-like) walking up at different rates */
+            float c1 = 1.0f + (k - 3) * 0.55f, c2 = 3.0f + (k - 3) * 1.3f, bw = 0.8f + 0.04f * k;
+            for (int h = 1; h <= 48; h++)
+                add(x, h, expf(-(h - c1) * (h - c1) / (2 * bw * bw)) + 0.7f * expf(-(h - c2) * (h - c2) / (2 * bw * bw)) + 0.04f / h, 0);
         } else if (k < 48) {        /* power-law spectra from dark to bright, with alternating sign patterns */
             float p = 2.2f - (k - 24) * 0.08f;
             int pat = k % 4;
@@ -32,10 +33,11 @@ void waves_open(float w[PE_NWAVES][PE_WLEN]) {
         } else if (k < 72) {        /* pulse-like spectra at swept duty cycles */
             float d = 0.03f + (k - 48) * 0.019f;
             for (int h = 1; h <= 48; h++) add(x, h, sinf(3.14159265f * h * d) / h, 0);
-        } else if (k < 94) {        /* seeded random spectra (fixed: the same set every time) */
+        } else if (k < 94) {        /* seeded sparse random spectra (fixed: the same set every time): a few strong, unrelated partials */
             uint32_t s = 0x5EED0000u + (uint32_t)k;
-            for (int h = 1; h <= 40; h++)
-                add(x, h, (lcg(&s) % 1000) / 1000.0f / sqrtf((float)h), (lcg(&s) % 6283) / 1000.0f);
+            int nstrong = 2 + (k % 5);
+            for (int h = 1; h <= 40; h++) add(x, h, 0.03f / sqrtf((float)h), (lcg(&s) % 6283) / 1000.0f);
+            for (int j = 0; j < nstrong; j++) add(x, 1 + (int)(lcg(&s) % (4 + 2 * (k - 72))), 0.4f + (lcg(&s) % 600) / 1000.0f, (lcg(&s) % 6283) / 1000.0f);
         } else if (k == 95) {       /* wave 96: a folded sine of our own (the original's slot 96 is unique to the instrument) */
             for (int i = 0; i < PE_WLEN; i++) x[i] = sinf(2.5f * sinf(6.2831853f * i / PE_WLEN));
         }

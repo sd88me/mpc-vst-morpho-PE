@@ -85,7 +85,7 @@ typedef struct {
     ma_hb_t dec[2][2];
     float sync_corr;              /* the part of a hard-sync jump still to add to the next oscillator 1 sample */
     float bpre[2];                /* last mixer input from the base-rate parts, for the upsampling interpolation */
-    float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_peak, gate_fade, gate_g0, gain_gate, distg, dfb;
+    float lad[2][4], ladd[2][4], drift[4], fbuf[2][FBLEN], fbo[2], hpz[2][2][2], hpc[2][5], gate_peak, gate_fade, gate_g0, gain_gate, distg, distcomp, dfb;
     int gate_state, gate_hold;
     int fpos, dpos, hp_cur;
     float *dly;
@@ -104,6 +104,7 @@ typedef struct {
     int nheld, pedal, deferred[128];
     int last_note, rr;
     float bend, wheel, press, breath, foot, expr, cc_vol, bright;      /* smoothed controllers */
+    float sm_cut, sm_res, sm_dist, sm_vol; int sm_init;   /* the panel knobs, smoothed (the integer steps would zipper) */
     float t_wheel, t_press, t_breath, t_foot, t_expr, t_bright;
     float host_bpm;
     int seq_run, clock_src, transport;
@@ -733,12 +734,12 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
 
     /* lowpass: base + envelope + key tracking (72 = one semitone per note) + split + controllers */
     float envamt = clampf(s99(s, P_LPF_ENV) + dp[48] + dp[51], -99, 99);
-    float cut = P(s, P_LPF_FREQ) + fenv * envamt / 99.0f * 164 + v->key[0] * P(s, P_LPF_KEY) / 72.0f + d[20] + s->bright * 40;
+    float cut = s->sm_cut + fenv * envamt / 99.0f * 164 + v->key[0] * P(s, P_LPF_KEY) / 72.0f + d[20] + s->bright * 40;
     float split = clampf(P(s, P_LPF_SPLIT) + d[21], 0, 100) * 0.25f;
     for (int c = 0; c < 2; c++) {
         v->cut_prev[c] = v->cut[c];
         v->cut[c] = clampf(cut + (c ? -split : split) + d[64 + c], -40, 200);
-        float r = clampf(P(s, P_LPF_RES) + d[22] + d[66 + c], 0, 100) / 100.0f;
+        float r = clampf(s->sm_res + d[22] + d[66 + c], 0, 100) / 100.0f;
         v->res[c] = P(s, P_POLES) ? r * 4.5f : r * 12.0f;
     }
 
@@ -760,7 +761,11 @@ static void voice_control(pe_t *s, voice_t *v, int vi, float sps) {
     if (v->hpv && v->hpv != v->hp_cur) hpf_design(v, v->hpv);
     int dist = P(s, P_DIST);
     v->distv = (dist > 0 && dist < 100) ? dist : 0;
-    v->distg = dist > 1 && dist < 100 ? fmaxf(pe_dist_gain((float)dist) + d[68] * (1.0f / 128), 0) : 1;   /* the accumulator adds 1/8 to the table entry, which is gain x 16 */
+    v->distg = dist > 1 && dist < 100 ? fmaxf(pe_dist_gain(fmaxf(s->sm_dist, 2.0f)) + d[68] * (1.0f / 128), 0) : 1;
+    /* The firmware's gain (to 64 dB) and hard clip are kept as they are, but the clipped output is full scale at every setting, so a small
+     * turn was a big jump in level. The output is scaled back by 1/sqrt(g^0.6) (a drive stage normalised as in the maze voice): the knob
+     * adds harmonics rather than volume. Not in the firmware, which has no such makeup. */
+    v->distcomp = 1.0f / sqrtf(powf(v->distg, 0.6f));   /* the accumulator adds 1/8 to the table entry, which is gain x 16 */
     static const int dt[3] = {P_DLY1_TIME, P_DLY2_TIME, P_DLY3_TIME}, da[3] = {P_DLY1_LEVEL, P_DLY2_LEVEL, P_DLY3_LEVEL};
     for (int k = 0; k < 3; k++) {
         int tv = P(s, dt[k]);
@@ -792,7 +797,7 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
      * the voice count only changes with all voices off, so the switch never lands in a held note */
     const int OS = (s->os == 4 && s->nv > 4) ? 2 : s->os;
     int four = P(s, P_POLES), grunge = P(s, P_GRUNGE), sync = P(s, P_SYNC);
-    float vol = P(s, P_VOLUME) / 100.0f;
+    float vol = s->sm_vol / 100.0f;
     const float *w3 = s->waves[v->wave[0]], *w4 = s->waves[v->wave[1]];
     for (int i = 0; i < n; i++) {
         /* digital oscillators (base rate) */
@@ -905,8 +910,8 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
                 v->gain_gate = v->gate_fade > 0 ? v->gate_fade / (8192 * k48) * v->gate_g0 : 0;
                 if (v->gate_fade <= 0) { v->gate_state = 0; v->gate_peak = 0; }
             } else v->gain_gate = 0;
-            L = clampf(L * v->distg, -1, 1) * v->gain_gate;
-            R = clampf(R * v->distg, -1, 1) * v->gain_gate;
+            L = clampf(L * v->distg, -1, 1) * v->distcomp * v->gain_gate;
+            R = clampf(R * v->distg, -1, 1) * v->distcomp * v->gain_gate;
         }
         /* three-tap delay on the summed channels; FB1 back into the delay, FB2 back into the filters */
         float din = 0.5f * (L + R), dsum = 0;
@@ -925,8 +930,10 @@ static void voice_audio(pe_t *s, voice_t *v, float *out, int n) {
         L += dsum; R += dsum;
         /* output hack: drops bits, quite rudely */
         if (v->hack) {
-            float q = (float)(1 << (15 - v->hack));
-            L = floorf(L * q) / q; R = floorf(R * q) / q;
+            /* the mixer's full scale is 0.5 and a program sits well below it, so the 16-bit word is taken as 4x this signal (else the top
+             * settings only ever saw a sample or two of quantiser and sounded like silence); rounding, so there is no DC */
+            float q = (float)(1 << (15 - v->hack)) * 0.25f;
+            L = roundf(L * q) / q; R = roundf(R * q) / q;
         }
         out[2 * i] += L * vol;
         out[2 * i + 1] += R * vol;
@@ -1064,6 +1071,13 @@ static void pe_render(void *h, int16_t *out, int frames) {
         s->wheel += (s->t_wheel - s->wheel) * k; s->press += (s->t_press - s->press) * k;
         s->breath += (s->t_breath - s->breath) * k; s->foot += (s->t_foot - s->foot) * k;
         s->expr += (s->t_expr - s->expr) * k; s->bright += (s->t_bright - s->bright) * k;
+        {
+            const float ks = 0.03f;      /* ~5 ms at 8-sample blocks */
+            float tc = (float)P(s, P_LPF_FREQ), tr = (float)P(s, P_LPF_RES), td = (float)P(s, P_DIST), tv = (float)P(s, P_VOLUME);
+            if (!s->sm_init) { s->sm_cut = tc; s->sm_res = tr; s->sm_dist = td; s->sm_vol = tv; s->sm_init = 1; }
+            s->sm_cut += (tc - s->sm_cut) * ks; s->sm_res += (tr - s->sm_res) * ks;
+            s->sm_dist += (td - s->sm_dist) * ks; s->sm_vol += (tv - s->sm_vol) * ks;
+        }
         memset(buf, 0, sizeof buf);
         for (int i = 0; i < s->nv; i++) {
             voice_t *v = &s->v[i];
