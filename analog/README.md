@@ -9,6 +9,7 @@ globals, plain C99, MIT. Written from the papers (Valimaki/Huovilainen, Zavalish
 | OTA-cascade lowpass | `ma_ota_lpf` (zero-delay feedback, per-stage limiting, 2/4-pole), `ma_ota_G` |
 | Oversampling | `ma_hb_design_standard`, `ma_hb_dec` (Kaiser half-band decimators, 4x -> 2x -> 1x) |
 | Saturation | `ma_tanh` |
+| Prophet-style SSM / CEM (from Profit-5) | `ma_vcf2040` (SSM 2040 filter as a circuit), `ma_vcf3320` (CEM 3320), `ma_ssm2040_lpf`, `ma_2020_ctl` (SSM 2020 control port), `ma_env_*` (SSM 2050 envelope), `ma_cv_*` (7-bit CV / S&H), `ma_drift_*`, `ma_tol`, `ma_glide`, `ma_selfosc_seed`. Checked against ngspice (see mpc-vst-profit5 `docs/CIRCUIT.md`) |
 
 Tests: `gcc -O2 -Ianalog -o /tmp/ma_test analog/test/test_analog.c -lm && /tmp/ma_test` (self-oscillation tuning of both filters, 2-pole never
 oscillates, alias level, half-band response, DCO pitch and sync). See `PLAN.md`.
