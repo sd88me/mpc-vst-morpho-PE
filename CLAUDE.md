@@ -11,5 +11,5 @@ Ground rules:
   modelled on, with the disclaimer.
 - `vst/params.json`, `src/patch_tab.h` and `vst/layout.conf` are generated: edit `tools/gen_patch.py` / `tools/gen_layout.py`
   and run `tools/make_layout.sh`. Parameter order is the instrument's and append-only once released.
-- Every release must be catalog-conformant (`release.py --repo sd88me/mpc-vst-morpho-PE --license MIT --id morpho-pe`,
+- Every release must be catalog-conformant (`release.py --repo sd88me/mpc-vst-morpho-PE --license GPL-3.0-or-later --id morpho-pe`,
   `catalog_check.py --catalog` OK).
